@@ -1,5 +1,5 @@
-aionsq
-======
+aionsq (work in progress)
+=========================
 
 asyncio (PEP 3156) nsq_ (message queue) client.
 
@@ -20,7 +20,8 @@ Simple low-level interface:
         loop = asyncio.get_event_loop()
         @asyncio.coroutine
         def go():
-            nsq = yield from create_connection(port=4150, loop=loop)
+            nsq = yield from create_connection(host='localhost', port=4150,
+                                               loop=loop)
             data = yield from nsq.execute(b'PUB', b'test_topic', data=b'test_msg')
             print(data)
         loop.run_until_complete(go())

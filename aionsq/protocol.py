@@ -3,8 +3,10 @@
 :see: http://nsq.io/clients/tcp_protocol_spec.html
 """
 import struct
-from aionsq.exceptions import ProtocolError
+from .exceptions import ProtocolError
 from . import consts
+
+__all__ = ['Reader', 'encode_command']
 
 
 class Reader(object):

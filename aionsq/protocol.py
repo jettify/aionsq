@@ -1,3 +1,7 @@
+"""NSQ protocol parser.
+
+:see: http://nsq.io/clients/tcp_protocol_spec.html
+"""
 import struct
 from aionsq.exceptions import ProtocolError
 from . import consts

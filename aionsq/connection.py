@@ -1,8 +1,8 @@
 import asyncio
 from collections import deque
-from aionsq.constants import MAX_CHUNK_SIZE, MAGIC_V2, FRAME_TYPE_RESPONSE, \
-    FRAME_TYPE_ERROR, FRAME_TYPE_MESSAGE
-from aionsq.exceptions import ProtocolError
+from .consts import MAX_CHUNK_SIZE, MAGIC_V2, FRAME_TYPE_RESPONSE, \
+    FRAME_TYPE_ERROR, FRAME_TYPE_MESSAGE, HEARTBEAT
+from .exceptions import ProtocolError
 from .protocol import encode_command, Reader
 
 
@@ -58,8 +58,9 @@ class NsqConnection:
 
         if command in (b'NOP', b'FIN', b'RDY', b'REQ', b'TOUCH'):
             fut.set_result(b'OK')
-            return fut
-        self._cmd_waiters.append((fut, cb))
+        else:
+            self._cmd_waiters.append((fut, cb))
+
         self._writer.write(encode_command(command, *args, data=data))
         return fut
 
@@ -82,6 +83,13 @@ class NsqConnection:
             self._closing = closed = True
             self._loop.call_soon(self._do_close, None)
         return closed
+
+    def _send_magic(self):
+        self._writer.write(MAGIC_V2)
+
+    def _pulse(self):
+        nop = encode_command(b'NOP')
+        self._writer.write(nop)
 
     @asyncio.coroutine
     def _read_data(self):
@@ -107,15 +115,19 @@ class NsqConnection:
                         break
 
                     resp_type, resp = obj
-                    if resp_type == FRAME_TYPE_RESPONSE:
+                    if resp_type == FRAME_TYPE_RESPONSE and resp == HEARTBEAT:
+                        self._pulse()
+                    elif resp_type == FRAME_TYPE_RESPONSE:
                         waiter, cb = self._cmd_waiters.popleft()
-                        self._cmd_waiters.set_result(resp)
+                        waiter.set_result(resp)
                         cb is not None and cb(resp)
                     elif resp_type == FRAME_TYPE_ERROR:
-                        self._cmd_waiters.set_exception(resp)
+                        waiter, cb = self._cmd_waiters.popleft()
+                        waiter.set_exception(resp)
                         cb is not None and cb(resp)
                     elif resp_type == FRAME_TYPE_MESSAGE:
                         self._msq_queue.put_nowait(resp)
+
 
         self._closing = True
         self._loop.call_soon(self._do_close, None)

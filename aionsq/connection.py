@@ -1,23 +1,19 @@
 import asyncio
+from asyncio import CancelledError
 from collections import deque
 from .consts import MAX_CHUNK_SIZE, MAGIC_V2, FRAME_TYPE_RESPONSE, \
     FRAME_TYPE_ERROR, FRAME_TYPE_MESSAGE, HEARTBEAT
 from .exceptions import ProtocolError
 from .protocol import encode_command, Reader
 
+import ssl
 
 @asyncio.coroutine
 def create_connection(host='localhost', port=4151, *, loop=None):
     """XXX"""
     reader, writer = yield from asyncio.open_connection(
             host, port, loop=loop)
-
-    conn = NsqConnection(reader, writer, loop=loop)
-
-    # if password is not None:
-    #     yield from conn.auth(password)
-    # if db is not None:
-    #     yield from conn.select(db)
+    conn = NsqConnection(reader, writer, host, port, loop=loop)
     conn.connect()
     return conn
 
@@ -25,18 +21,48 @@ def create_connection(host='localhost', port=4151, *, loop=None):
 class NsqConnection:
     """Redis connection."""
 
-    def __init__(self, reader, writer, *, loop=None):
+    def __init__(self, reader, writer, host, port,*, loop=None):
         self._loop = loop or asyncio.get_event_loop()
         self._reader = reader
         self._writer = writer
+
+        self._host = host
+        self._port = port
+
         self._loop = loop or asyncio.get_event_loop()
         self._parser = Reader()
         self._cmd_waiters = deque()
         self._msq_queue = asyncio.Queue(loop=self._loop)
         self._closing = False
         self._closed = False
-
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
+
+        self._is_upgrading = False
+
+    @asyncio.coroutine
+    def _upgrade_connection(self):
+        self._reader_task.cancel()
+
+        transport = self._writer.transport
+        transport.pause_reading()
+        rawsock = transport.get_extra_info('socket', default=None)
+        if rawsock is None:
+            raise RuntimeError("Transport does not expose socket instance")
+
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        import ipdb; ipdb.set_trace()
+
+        reader, writer = yield from asyncio.open_connection(
+            sock=rawsock, ssl=ssl_context, loop=self._loop,
+            server_hostname=self._host)
+
+        self._reader = reader
+        self._writer = writer
+
+        fut = asyncio.Future(loop=self._loop)
+        self._cmd_waiters.append((fut, None))
+        self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
+
 
 
     def __repr__(self):
@@ -60,8 +86,8 @@ class NsqConnection:
             fut.set_result(b'OK')
         else:
             self._cmd_waiters.append((fut, cb))
-
-        self._writer.write(encode_command(command, *args, data=data))
+        command_raw = encode_command(command, *args, data=data)
+        self._writer.write(command_raw)
         return fut
 
     def close(self):
@@ -92,12 +118,17 @@ class NsqConnection:
         self._writer.write(nop)
 
     @asyncio.coroutine
-    def _read_data(self):
+    def _read_data(self, forever=True):
         """Response reader task."""
+        is_canceled = False
         while not self._reader.at_eof():
             try:
                 data = yield from self._reader.read(MAX_CHUNK_SIZE)
                 import ipdb; ipdb.set_trace()
+            except CancelledError:
+
+                is_canceled = True
+                break
             except Exception as exc:
                 break
             self._parser.feed(data)
@@ -128,6 +159,6 @@ class NsqConnection:
                     elif resp_type == FRAME_TYPE_MESSAGE:
                         self._msq_queue.put_nowait(resp)
 
-
-        self._closing = True
-        self._loop.call_soon(self._do_close, None)
+        if not is_canceled:
+            self._closing = True
+            self._loop.call_soon(self._do_close, None)

@@ -89,9 +89,13 @@ def encode_command(cmd, *args, data=None):
     assert isinstance(cmd, bytes)
     cmd = cmd.upper().strip()
     body_data, params_data = b'', b''
-    if data:
-        assert isinstance(data, bytes), 'body must be a bytes'
+    if data and isinstance(data, (bytes, str)):
+        data = data.encode('utf-8') if isinstance(data, str) else data
         body_data = struct.pack('>l', len(data)) + data
+
+    if data and isinstance(data, (list, tuple)):
+        # TODO, pack for mpub
+        pass
     if len(args):
         params = [p.encode('utf-8') if isinstance(p, str) else p for p in args]
         params_data = b' ' + b' '.join(params)

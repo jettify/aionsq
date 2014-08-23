@@ -50,7 +50,6 @@ class NsqConnection:
             raise RuntimeError("Transport does not expose socket instance")
 
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-        import ipdb; ipdb.set_trace()
 
         reader, writer = yield from asyncio.open_connection(
             sock=rawsock, ssl=ssl_context, loop=self._loop,
@@ -62,8 +61,6 @@ class NsqConnection:
         fut = asyncio.Future(loop=self._loop)
         self._cmd_waiters.append((fut, None))
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
-
-
 
     def __repr__(self):
         return '<NsqProducer [db:{}]>'.format(self._db)

@@ -2,7 +2,6 @@ import unittest
 from aionsq.exceptions import ProtocolError
 from aionsq.protocol import Reader, encode_command
 
-
 class ParserTest(unittest.TestCase):
 
     def test_ok_resp(self):
@@ -101,3 +100,12 @@ class CommandEncoderTest(unittest.TestCase):
     def test_nop_command(self):
         command_raw = encode_command(b'NOP')
         self.assertEqual(command_raw, b'NOP\n')
+
+    def test_mpub_command(self):
+        command_raw = encode_command(b'MPUB', b'topic', data = [b'foo', b'bar'])
+        required_command = b'MPUB topic\n\x00\x00\x00\x12\x00\x00\x00\x02' \
+                           b'\x00\x00\x00\x03foo\x00\x00\x00\x03bar'
+        self.assertEqual(command_raw, required_command)
+
+        command_raw = encode_command(b'MPUB', 'topic', data = ['foo', 'bar'])
+        self.assertEqual(command_raw, required_command)

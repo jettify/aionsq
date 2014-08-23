@@ -84,18 +84,25 @@ class Reader(object):
         return timestamp, attempts, msg_id, msg
 
 
+def _encode_body(data):
+    data = data.encode('utf-8') if isinstance(data, str) else data
+    result = struct.pack('>l', len(data)) + data
+    return result
+
+
 def encode_command(cmd, *args, data=None):
     """XXX"""
     assert isinstance(cmd, bytes)
     cmd = cmd.upper().strip()
     body_data, params_data = b'', b''
     if data and isinstance(data, (bytes, str)):
-        data = data.encode('utf-8') if isinstance(data, str) else data
-        body_data = struct.pack('>l', len(data)) + data
+        body_data = _encode_body(data)
 
     if data and isinstance(data, (list, tuple)):
-        # TODO, pack for mpub
-        pass
+        data_encoded = [_encode_body(part) for part in data]
+        num_parts = len(data_encoded)
+        payload = struct.pack('>l', num_parts) + b''.join(data_encoded)
+        body_data = struct.pack('>l', len(payload)) + payload
     if len(args):
         params = [p.encode('utf-8') if isinstance(p, str) else p for p in args]
         params_data = b' ' + b' '.join(params)

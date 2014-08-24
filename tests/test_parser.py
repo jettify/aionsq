@@ -1,6 +1,7 @@
 import unittest
 from aionsq.exceptions import ProtocolError
-from aionsq.protocol import Reader, encode_command
+from aionsq.protocol import Reader, encode_command, NsqMessage, NsqError
+
 
 class ParserTest(unittest.TestCase):
 
@@ -32,6 +33,7 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(2, obj_type)
         msg_tuple = (1408558838557736579, 1, b'06f6cbf50539f004', b'test_msg')
         self.assertEqual(obj, msg_tuple)
+        self.assertIsInstance(obj, NsqMessage)
 
         # unpack heartbeat
         obj_type, obj = parser.gets()
@@ -78,6 +80,7 @@ class ParserTest(unittest.TestCase):
         code, msg = obj
         self.assertEqual(b'E_BAD_TOPIC', code)
         self.assertEqual(b'PUB topic name "fo/o" is not valid', msg)
+        self.assertIsInstance(obj, NsqError)
 
     def test_protocol_error(self):
         ok_raw = b'\x00\x00\x00\x06\x00\x00\x00\x03OK'

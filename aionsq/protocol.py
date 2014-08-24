@@ -2,11 +2,17 @@
 
 :see: http://nsq.io/clients/tcp_protocol_spec.html
 """
+from collections import namedtuple
 import struct
 from .exceptions import ProtocolError
 from . import consts
 
 __all__ = ['Reader', 'encode_command']
+
+
+NsqError = namedtuple('NsqError', ['code', 'msg'])
+NsqMessage = namedtuple('NsqMessage',
+                        ['timestamp', 'attempts', 'message_id', 'message'])
 
 
 class Reader(object):
@@ -66,7 +72,7 @@ class Reader(object):
         end = consts.DATA_SIZE + self._payload_size
         error = bytes(self._buffer[start:end])
         code, msg = error.split(None, 1)
-        return code, msg
+        return NsqError(code=code, msg=msg)
 
     def _unpack_response(self):
         start = consts.DATA_SIZE + consts.FRAME_SIZE
@@ -81,7 +87,7 @@ class Reader(object):
         fmt = '>qh16s{}s'.format(msg_len)
         payload = struct.unpack(fmt, self._buffer[start:end])
         timestamp, attempts, msg_id, msg = payload
-        return timestamp, attempts, msg_id, msg
+        return NsqMessage(timestamp, attempts, msg_id, msg)
 
 
 def _encode_body(data):

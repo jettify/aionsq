@@ -89,7 +89,9 @@ class NsqConnection:
 
     def close(self):
         """Close connection."""
-        self._do_close(None)
+        cls = encode_command(b'CLS')
+        return self.execute(cls)
+
 
     def _do_close(self, exc):
         if self._closed:
@@ -121,6 +123,7 @@ class NsqConnection:
         while not self._reader.at_eof():
             try:
                 data = yield from self._reader.read(MAX_CHUNK_SIZE)
+
                 import ipdb; ipdb.set_trace()
             except CancelledError:
 
@@ -159,3 +162,100 @@ class NsqConnection:
         if not is_canceled:
             self._closing = True
             self._loop.call_soon(self._do_close, None)
+
+
+class Nsq(object):
+
+    def __init__(self, connection):
+        self._conn = connection
+
+
+    def __repr__(self):
+        return '<Nsq {!r}>'.format(self._conn)
+
+    @asyncio.coroutine
+    def nop(self):
+        """
+
+        :return:
+        """
+        return (yield from self._conn.execute(b'NOP'))
+
+    @asyncio.coroutine
+    def auth(self, secret):
+        """
+
+        :param secret:
+        :return:
+        """
+        return (yield from self._conn.execute(b'AUTH', secret))
+
+    @asyncio.coroutine
+    def sub(self, topic, channel):
+        return (yield from self._conn.execute(b'SUB', topic, channel))
+
+    def pub(self, topic, message):
+        """
+
+        :param topic:
+        :param message:
+        :return:
+        """
+        return (yield from self._conn.execute(b'PUB', topic, data=message))
+
+    def mpub(self, topic, message, *messages):
+        """
+
+        :param topic:
+        :param message:
+        :param messages:
+        :return:
+        """
+        msgs = [message] + messages
+        return (yield from self._conn.execute(b'MPUB', topic, data=msgs))
+
+    def rdy(self, count):
+        """
+
+        :param count:
+        :return:
+        """
+        if not isinstance(count, int):
+            raise TypeError('count mus be integer')
+        count = str(count).encode('utf-8')
+        return (yield from self._conn.execute(b'RDY', count))
+
+
+    def fin(self, message_id):
+        """
+
+        :param message_id:
+        :return:
+        """
+        if isinstance(message_id, bytes):
+            raise TypeError('message_id must be bytes')
+        return (yield from self._conn.execute(b'FIN', message_id))
+
+    def req(self, message_id, timeout):
+        """
+
+        :param message_id:
+        :param timeout:
+        :return:
+        """
+        return (yield from self._conn.execute(b'REQ', message_id, timeout))
+
+    def touch(self, message_id):
+        """
+
+        :param message_id:
+        :return:
+        """
+        return (yield from self._conn.execute(b'TOUCH', message_id))
+
+    def cls(self):
+        """
+
+        :return:
+        """
+        return (yield from self._conn.execute(b'CLS'))

@@ -7,12 +7,21 @@ import struct
 from .exceptions import ProtocolError
 from . import consts
 
-__all__ = ['Reader', 'encode_command']
+
+__all__ = ['Reader', 'encode_command', 'NsqError', 'NsqMessage']
 
 
 NsqError = namedtuple('NsqError', ['code', 'msg'])
 NsqMessage = namedtuple('NsqMessage',
                         ['timestamp', 'attempts', 'message_id', 'message'])
+
+_converters = {
+    bytes: lambda val: val,
+    bytearray: lambda val: val,
+    str: lambda val: val.encode('utf-8'),
+    int: lambda val: str(val).encode('utf-8'),
+    float: lambda val: str(val).encode('utf-8'),
+    }
 
 
 class Reader(object):
@@ -91,25 +100,36 @@ class Reader(object):
 
 
 def _encode_body(data):
-    data = data.encode('utf-8') if isinstance(data, str) else data
-    result = struct.pack('>l', len(data)) + data
+    _data = _convert_value(data)
+    result = struct.pack('>l', len(_data)) + _data
     return result
+
+
+def _convert_value(value):
+    if type(value) in _converters:
+        converted_value = _converters[type(value)](value)
+    else:
+        raise TypeError("Argument {!r} expected to be of bytes,"
+                        " str, int or float type".format(value))
+    return converted_value
 
 
 def encode_command(cmd, *args, data=None):
     """XXX"""
-    assert isinstance(cmd, bytes)
+    _args = [_convert_value(a) for a in args]
     cmd = cmd.upper().strip()
+    _cmd = _convert_value(cmd)
     body_data, params_data = b'', b''
-    if data and isinstance(data, (bytes, str)):
-        body_data = _encode_body(data)
+
+    if len(_args):
+        params_data = b' ' + b' '.join(_args)
 
     if data and isinstance(data, (list, tuple)):
         data_encoded = [_encode_body(part) for part in data]
         num_parts = len(data_encoded)
         payload = struct.pack('>l', num_parts) + b''.join(data_encoded)
         body_data = struct.pack('>l', len(payload)) + payload
-    if len(args):
-        params = [p.encode('utf-8') if isinstance(p, str) else p for p in args]
-        params_data = b' ' + b' '.join(params)
-    return b''.join((cmd, params_data, consts.NL, body_data))
+    elif data:
+        body_data = _encode_body(data)
+
+    return b''.join((_cmd, params_data, consts.NL, body_data))

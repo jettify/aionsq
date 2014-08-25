@@ -94,21 +94,39 @@ class CommandEncoderTest(unittest.TestCase):
 
     def test_sub_command(self):
         command_raw = encode_command(b'SUB', b'foo', b'bar')
+        command_str = encode_command('SUB', 'foo', 'bar')
         self.assertEqual(command_raw, b'SUB foo bar\n')
+        self.assertEqual(command_str, b'SUB foo bar\n')
 
     def test_pub_command(self):
         command_raw = encode_command(b'PUB', b'foo', data=b'test_msg')
-        self.assertEqual(command_raw,  b'PUB foo\n\x00\x00\x00\x08test_msg')
+        command_str = encode_command('PUB', 'foo', data='test_msg')
+        self.assertEqual(command_raw, b'PUB foo\n\x00\x00\x00\x08test_msg')
+        self.assertEqual(command_str, b'PUB foo\n\x00\x00\x00\x08test_msg')
+
+    def test_pub_different_payload(self):
+        cmd_with_int = encode_command('PUB', b'foo', data=42)
+        cmd_with_float = encode_command('PUB', 'foo', data=3.14)
+        cmd_with_bytearray = encode_command('PUB', 'foo',
+                                            data=bytearray(b'foo'))
+
+        self.assertEqual(cmd_with_int, b'PUB foo\n\x00\x00\x00\x0242')
+        self.assertEqual(cmd_with_float, b'PUB foo\n\x00\x00\x00\x043.14')
+        self.assertEqual(cmd_with_bytearray, b'PUB foo\n\x00\x00\x00\x03foo')
+
+    def test_pub_not_converatble_payload(self):
+        with self.assertRaises(TypeError):
+            encode_command(b'PUB', b'foo', data=object())
 
     def test_nop_command(self):
         command_raw = encode_command(b'NOP')
         self.assertEqual(command_raw, b'NOP\n')
 
     def test_mpub_command(self):
-        command_raw = encode_command(b'MPUB', b'topic', data = [b'foo', b'bar'])
+        command_raw = encode_command(b'MPUB', b'topic', data=[b'foo', b'bar'])
         required_command = b'MPUB topic\n\x00\x00\x00\x12\x00\x00\x00\x02' \
                            b'\x00\x00\x00\x03foo\x00\x00\x00\x03bar'
         self.assertEqual(command_raw, required_command)
 
-        command_raw = encode_command(b'MPUB', 'topic', data = ['foo', 'bar'])
+        command_raw = encode_command(b'MPUB', 'topic', data=['foo', 'bar'])
         self.assertEqual(command_raw, required_command)

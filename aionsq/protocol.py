@@ -63,6 +63,7 @@ class Reader(object):
         self._buffer = self._buffer[start:]
         self._is_header = False
         self._payload_size = None
+        self._frame_type = None
 
     def _parse_payload(self):
         response_type, response = self._frame_type, None

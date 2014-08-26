@@ -19,7 +19,7 @@ def create_connection(host='localhost', port=4151, *, loop=None):
 
 
 class NsqConnection:
-    """Redis connection."""
+    """XXX"""
 
     def __init__(self, reader, writer, host, port,*, loop=None):
         self._loop = loop or asyncio.get_event_loop()

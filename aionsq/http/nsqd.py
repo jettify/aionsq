@@ -32,7 +32,7 @@ class Nsqd(NsqHTTPConnection):
     def pub(self, topic, message):
         """Returns version information."""
         resp = yield from self.perform_request(
-            'GET', 'stats', {'topic': topic}, message)
+            'POST', 'pub', {'topic': topic}, message)
         return resp
 
     @asyncio.coroutine
@@ -41,30 +41,30 @@ class Nsqd(NsqHTTPConnection):
         assert len(messages), "Specify one or mor message"
         msgs = '\n'.join(messages)
         resp = yield from self.perform_request(
-            'GET', 'stats', {'topic': 'topic'}, msgs)
+            'POST', 'mpub', {'topic': topic}, msgs)
         return resp
 
     @asyncio.coroutine
     def create_topic(self, topic):
         resp = yield from self.perform_request(
-            'GET', 'topic/create', {'topic': topic}, None)
+            'POST', 'topic/create', {'topic': topic}, None)
         return resp
 
     @asyncio.coroutine
     def delete_topic(self, topic):
         resp = yield from self.perform_request(
-            'GET', 'topic/delete', {'topic': topic}, None)
+            'POST', 'topic/delete', {'topic': topic}, None)
         return resp
 
     @asyncio.coroutine
-    def create_channel(self, channel, topic):
+    def create_channel(self, topic, channel):
         resp = yield from self.perform_request(
-            'GET', 'channel/create', {'topic': topic, 'channel': channel},
+            'POST', 'channel/create', {'topic': topic, 'channel': channel},
             None)
         return resp
 
     @asyncio.coroutine
-    def delete_channel(self, channel, topic):
+    def delete_channel(self, topic, channel):
         resp = yield from self.perform_request(
             'GET', 'channel/delete', {'topic': topic, 'channel': channel},
             None)

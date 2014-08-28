@@ -42,7 +42,6 @@ class NsqHTTPConnection:
             raise exc_class(resp.status, resp_body, response)
         return response['data']
 
-
     def __repr__(self):
         cls_name = self.__class__.__name__
         return '<{}: {}>'.format(cls_name, self._endpoint)

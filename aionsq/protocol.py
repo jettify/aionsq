@@ -2,18 +2,14 @@
 
 :see: http://nsq.io/clients/tcp_protocol_spec.html
 """
-from collections import namedtuple
 import struct
+from .containers import NsqMessage, NsqErrorMessage
 from .exceptions import ProtocolError
 from . import consts
 
 
-__all__ = ['Reader', 'encode_command', 'NsqError', 'NsqMessage']
+__all__ = ['Reader', 'encode_command']
 
-
-NsqError = namedtuple('NsqError', ['code', 'msg'])
-NsqMessage = namedtuple('NsqMessage',
-                        ['timestamp', 'attempts', 'message_id', 'message'])
 
 _converters = {
     bytes: lambda val: val,
@@ -26,11 +22,12 @@ _converters = {
 
 class Reader(object):
 
-    def __init__(self):
+    def __init__(self, conn):
         self._buffer = bytearray()
         self._payload_size = None
         self._is_header = False
         self._frame_type = None
+        self._conn = conn
 
     def feed(self, data):
         """Put raw chunk of data obtained from connection to buffer.
@@ -82,7 +79,7 @@ class Reader(object):
         end = consts.DATA_SIZE + self._payload_size
         error = bytes(self._buffer[start:end])
         code, msg = error.split(None, 1)
-        return NsqError(code=code, msg=msg)
+        return NsqErrorMessage(code=code, msg=msg)
 
     def _unpack_response(self):
         start = consts.DATA_SIZE + consts.FRAME_SIZE
@@ -97,7 +94,7 @@ class Reader(object):
         fmt = '>qh16s{}s'.format(msg_len)
         payload = struct.unpack(fmt, self._buffer[start:end])
         timestamp, attempts, msg_id, msg = payload
-        return NsqMessage(timestamp, attempts, msg_id, msg)
+        return NsqMessage(timestamp, attempts, msg_id, msg, self._conn)
 
 
 def _encode_body(data):
@@ -117,9 +114,8 @@ def _convert_value(value):
 
 def encode_command(cmd, *args, data=None):
     """XXX"""
+    _cmd = _convert_value(cmd.upper().strip())
     _args = [_convert_value(a) for a in args]
-    cmd = cmd.upper().strip()
-    _cmd = _convert_value(cmd)
     body_data, params_data = b'', b''
 
     if len(_args):

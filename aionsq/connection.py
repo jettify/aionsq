@@ -21,22 +21,25 @@ def create_connection(host='localhost', port=4151, *, loop=None):
 class NsqConnection:
     """XXX"""
 
-    def __init__(self, reader, writer, host, port,*, loop=None):
-        self._loop = loop or asyncio.get_event_loop()
+    def __init__(self, reader, writer, host, port, *, queue=None, loop=None):
         self._reader = reader
         self._writer = writer
 
         self._host = host
         self._port = port
 
+        assert isinstance(queue, asyncio.Queue) or queue is None
+        self._msq_queue = queue or asyncio.Queue(loop=self._loop)
+
         self._loop = loop or asyncio.get_event_loop()
-        self._parser = Reader()
+
+        self._parser = Reader(self)
+        # next queue is used for nsq commands
         self._cmd_waiters = deque()
-        self._msq_queue = asyncio.Queue(loop=self._loop)
         self._closing = False
         self._closed = False
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
-
+        # mart connection in upgrading state to ssl socket
         self._is_upgrading = False
 
     @asyncio.coroutine
@@ -220,9 +223,6 @@ class Nsq(object):
         :param count:
         :return:
         """
-        if not isinstance(count, int):
-            raise TypeError('count mus be integer')
-        count = str(count).encode('utf-8')
         return (yield from self._conn.execute(b'RDY', count))
 
 
@@ -232,8 +232,6 @@ class Nsq(object):
         :param message_id:
         :return:
         """
-        if isinstance(message_id, bytes):
-            raise TypeError('message_id must be bytes')
         return (yield from self._conn.execute(b'FIN', message_id))
 
     def req(self, message_id, timeout):

@@ -28,10 +28,11 @@ class NsqConnection:
         self._host = host
         self._port = port
 
+        self._loop = loop or asyncio.get_event_loop()
+
         assert isinstance(queue, asyncio.Queue) or queue is None
         self._msq_queue = queue or asyncio.Queue(loop=self._loop)
 
-        self._loop = loop or asyncio.get_event_loop()
 
         self._parser = Reader(self)
         # next queue is used for nsq commands
@@ -66,10 +67,10 @@ class NsqConnection:
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
 
     def __repr__(self):
-        return '<NsqProducer [db:{}]>'.format(self._db)
+        return '<NsqConnection: {}:{}'.format(self._host, self._port)
 
     def connect(self):
-        self._writer.write(MAGIC_V2)
+        self._send_magic()
 
     def execute(self, command, *args, data=None):
         """XXX"""

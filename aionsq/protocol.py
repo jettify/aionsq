@@ -2,13 +2,17 @@
 
 :see: http://nsq.io/clients/tcp_protocol_spec.html
 """
+import abc
 import struct
+import zlib
+import snappy
+
 from .containers import NsqMessage, NsqErrorMessage
 from .exceptions import ProtocolError
 from . import consts
 
 
-__all__ = ['Reader', 'encode_command']
+__all__ = ['Reader']
 
 
 _converters = {
@@ -20,22 +24,130 @@ _converters = {
     }
 
 
-class Reader(object):
+class BaseReader:
+
+    @abc.abstractmethod
+    def feed(self, chunk):
+        """
+
+        :return:
+        """
+
+    @abc.abstractmethod
+    def gets(self):
+        """
+
+        :return:
+        """
+
+    @abc.abstractmethod
+    def encode_command(self, cmd, *args, data=None):
+        """
+
+        :return:
+        """
+
+
+class BaseCompress(BaseReader):
+
+    def __init__(self, parser):
+        self._parser = parser
+
+    def compress(self, data):
+        raise NotImplementedError()
+
+    def decompress(self, chunk):
+        raise NotImplementedError()
+
+    def feed(self, chunk):
+        if not chunk:
+            return
+        uncompressed = self.decompress(chunk)
+        uncompressed and self._parser.feed(uncompressed)
+
+    def gets(self):
+        return self._parser.gets()
+
+    def encode_command(self, cmd, *args, data=None):
+        cmd = self._parser.encode_command(cmd, *args, data=data)
+        return self.compress(cmd)
+
+
+class DeflateReader(BaseCompress):
+
+    def __init__(self, parser, level=1):
+        buffer = parser.buffer
+        self._parser = Reader(parser._conn)
+
+        wbits = -zlib.MAX_WBITS
+        self._decompressor = zlib.decompressobj(wbits)
+        self._compressor = zlib.compressobj(level, zlib.DEFLATED, wbits)
+
+        self.feed(buffer)
+
+
+    def compress(self, data):
+        chunk = self._compressor.compress(data)
+        compressed = chunk + self._compressor.flush(zlib.Z_SYNC_FLUSH)
+        return compressed
+
+    def decompress(self, chunk):
+        return self._decompressor.decompress(chunk)
+
+
+class SnappyReader(BaseCompress):
+
+    def __init__(self, parser):
+        buffer = parser.buffer
+        self._parser = Reader(parser._conn)
+        self._decompressor = snappy.StreamDecompressor()
+        self._compressor = snappy.StreamCompressor()
+        self.feed(buffer)
+
+    def compress(self, data):
+        compressed = self._compressor.add_chunk(data, compress=True)
+        return compressed
+
+    def decompress(self, chunk):
+        return self._decompressor.decompress(chunk)
+
+
+def _encode_body(data):
+    _data = _convert_value(data)
+    result = struct.pack('>l', len(_data)) + _data
+    return result
+
+
+def _convert_value(value):
+    if type(value) in _converters:
+        converted_value = _converters[type(value)](value)
+    else:
+        raise TypeError("Argument {!r} expected to be of bytes,"
+                        " str, int or float type".format(value))
+    return converted_value
+
+
+class Reader:
 
     def __init__(self, conn):
         self._buffer = bytearray()
+        self._compressed_buffer = bytearray()
         self._payload_size = None
         self._is_header = False
         self._frame_type = None
         self._conn = conn
 
-    def feed(self, data):
+    @property
+    def buffer(self):
+        return self._buffer
+
+    def feed(self, chunk):
         """Put raw chunk of data obtained from connection to buffer.
         :param data: ``bytes``, raw input data.
         """
-        if not data:
+        if not chunk:
             return
-        self._buffer.extend(data)
+        self._buffer.extend(chunk)
 
     def gets(self):
         buffer_size = len(self._buffer)
@@ -96,37 +208,21 @@ class Reader(object):
         timestamp, attempts, msg_id, msg = payload
         return NsqMessage(timestamp, attempts, msg_id, msg, self._conn)
 
+    def encode_command(self, cmd, *args, data=None):
+        """XXX"""
+        _cmd = _convert_value(cmd.upper().strip())
+        _args = [_convert_value(a) for a in args]
+        body_data, params_data = b'', b''
 
-def _encode_body(data):
-    _data = _convert_value(data)
-    result = struct.pack('>l', len(_data)) + _data
-    return result
+        if len(_args):
+            params_data = b' ' + b' '.join(_args)
 
+        if data and isinstance(data, (list, tuple)):
+            data_encoded = [_encode_body(part) for part in data]
+            num_parts = len(data_encoded)
+            payload = struct.pack('>l', num_parts) + b''.join(data_encoded)
+            body_data = struct.pack('>l', len(payload)) + payload
+        elif data:
+            body_data = _encode_body(data)
 
-def _convert_value(value):
-    if type(value) in _converters:
-        converted_value = _converters[type(value)](value)
-    else:
-        raise TypeError("Argument {!r} expected to be of bytes,"
-                        " str, int or float type".format(value))
-    return converted_value
-
-
-def encode_command(cmd, *args, data=None):
-    """XXX"""
-    _cmd = _convert_value(cmd.upper().strip())
-    _args = [_convert_value(a) for a in args]
-    body_data, params_data = b'', b''
-
-    if len(_args):
-        params_data = b' ' + b' '.join(_args)
-
-    if data and isinstance(data, (list, tuple)):
-        data_encoded = [_encode_body(part) for part in data]
-        num_parts = len(data_encoded)
-        payload = struct.pack('>l', num_parts) + b''.join(data_encoded)
-        body_data = struct.pack('>l', len(payload)) + payload
-    elif data:
-        body_data = _encode_body(data)
-
-    return b''.join((_cmd, params_data, consts.NL, body_data))
+        return b''.join((_cmd, params_data, consts.NL, body_data))

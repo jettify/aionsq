@@ -5,14 +5,16 @@
 import abc
 import struct
 import zlib
-import snappy
+try:
+    import snappy
+except ImportError:
+    snappy = None
 
-from .containers import NsqMessage, NsqErrorMessage
 from .exceptions import ProtocolError
 from . import consts
 
 
-__all__ = ['Reader']
+__all__ = ['Reader', 'DeflateReader', 'SnappyReader']
 
 
 _converters = {
@@ -25,6 +27,13 @@ _converters = {
 
 
 class BaseReader:
+
+    def __init__(self):
+        self._buffer = bytearray()
+
+    @property
+    def buffer(self):
+        return self._buffer
 
     @abc.abstractmethod
     def feed(self, chunk):
@@ -48,10 +57,7 @@ class BaseReader:
         """
 
 
-class BaseCompress(BaseReader):
-
-    def __init__(self, parser):
-        self._parser = parser
+class BaseCompressReader(BaseReader):
 
     def compress(self, data):
         raise NotImplementedError()
@@ -73,18 +79,14 @@ class BaseCompress(BaseReader):
         return self.compress(cmd)
 
 
-class DeflateReader(BaseCompress):
+class DeflateReader(BaseCompressReader):
 
-    def __init__(self, parser, level=1):
-        buffer = parser.buffer
-        self._parser = Reader(parser._conn)
-
+    def __init__(self, buffer='', level=6):
+        self._parser = Reader()
         wbits = -zlib.MAX_WBITS
         self._decompressor = zlib.decompressobj(wbits)
         self._compressor = zlib.compressobj(level, zlib.DEFLATED, wbits)
-
         self.feed(buffer)
-
 
     def compress(self, data):
         chunk = self._compressor.compress(data)
@@ -95,11 +97,12 @@ class DeflateReader(BaseCompress):
         return self._decompressor.decompress(chunk)
 
 
-class SnappyReader(BaseCompress):
+class SnappyReader(BaseCompressReader):
 
-    def __init__(self, parser):
-        buffer = parser.buffer
-        self._parser = Reader(parser._conn)
+    def __init__(self, buffer=''):
+        self._parser = Reader()
+        if not snappy:
+            ImportError("You must install snappy first")
         self._decompressor = snappy.StreamDecompressor()
         self._compressor = snappy.StreamCompressor()
         self.feed(buffer)
@@ -129,13 +132,14 @@ def _convert_value(value):
 
 class Reader:
 
-    def __init__(self, conn):
+    def __init__(self, buffer=None):
+
         self._buffer = bytearray()
-        self._compressed_buffer = bytearray()
         self._payload_size = None
         self._is_header = False
         self._frame_type = None
-        self._conn = conn
+        buffer and self.feed(buffer)
+
 
     @property
     def buffer(self):
@@ -183,7 +187,7 @@ class Reader:
         elif response_type == consts.FRAME_TYPE_MESSAGE:
             response = self._unpack_message()
         else:
-            raise ProtocolError
+            raise ProtocolError()
         return response_type, response
 
     def _unpack_error(self):
@@ -191,7 +195,7 @@ class Reader:
         end = consts.DATA_SIZE + self._payload_size
         error = bytes(self._buffer[start:end])
         code, msg = error.split(None, 1)
-        return NsqErrorMessage(code=code, msg=msg)
+        return code, msg
 
     def _unpack_response(self):
         start = consts.DATA_SIZE + consts.FRAME_SIZE
@@ -205,8 +209,8 @@ class Reader:
         msg_len = end - start - consts.MSG_HEADER
         fmt = '>qh16s{}s'.format(msg_len)
         payload = struct.unpack(fmt, self._buffer[start:end])
-        timestamp, attempts, msg_id, msg = payload
-        return NsqMessage(timestamp, attempts, msg_id, msg, self._conn)
+        timestamp, attempts, msg_id, body = payload
+        return timestamp, attempts, msg_id, body
 
     def encode_command(self, cmd, *args, data=None):
         """XXX"""

@@ -4,7 +4,7 @@ from collections import namedtuple
 
 NsqErrorMessage = namedtuple('NsqError', ['code', 'msg'])
 BaseMessage = namedtuple('NsqMessage',
-    ['timestamp', 'attempts', 'message_id', 'message', 'conn'])
+    ['timestamp', 'attempts', 'message_id', 'body', 'conn'])
 
 
 class NsqMessage(BaseMessage):
@@ -59,4 +59,4 @@ class NsqMessageSecondVariant(object):
         return (yield from self.conn.touch(self.message_id))
 
     def __repr__(self):
-        return '<NsqProducer [db:{}]>'.format(self._db)
+        return '<NsqMessage: {}>'.format(self.__slots__)

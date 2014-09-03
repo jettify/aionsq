@@ -1,14 +1,13 @@
 import unittest
 from aionsq.exceptions import ProtocolError
-from aionsq.protocol import Reader, encode_command
-from aionsq.containers import NsqMessage, NsqErrorMessage
+from aionsq.protocol import Reader
 
 
 class ParserTest(unittest.TestCase):
     
     def setUp(self):
         self.conn = object()
-        self.parser = Reader(self.conn)
+        self.parser = Reader()
 
     def test_ok_resp(self):
         ok_raw = b'\x00\x00\x00\x06\x00\x00\x00\x00OK'
@@ -33,10 +32,8 @@ class ParserTest(unittest.TestCase):
         # unpack message
         obj_type, obj = self.parser.gets()
         self.assertEqual(2, obj_type)
-        msg_tuple = (1408558838557736579, 1, b'06f6cbf50539f004',
-                     b'test_msg', self.conn)
+        msg_tuple = (1408558838557736579, 1, b'06f6cbf50539f004', b'test_msg')
         self.assertEqual(obj, msg_tuple)
-        self.assertIsInstance(obj, NsqMessage)
 
         # unpack heartbeat
         obj_type, obj = self.parser.gets()
@@ -64,8 +61,7 @@ class ParserTest(unittest.TestCase):
         # unpack msg
         obj_type, obj = responses[0]
         self.assertEqual(2, obj_type)
-        msg_tuple = (1408558838557736579, 1, b'06f6cbf50539f004',
-                     b'test_msg', self.conn)
+        msg_tuple = (1408558838557736579, 1, b'06f6cbf50539f004', b'test_msg')
         self.assertEqual(obj, msg_tuple)
 
         # unpack heartbeat
@@ -82,7 +78,6 @@ class ParserTest(unittest.TestCase):
         code, msg = obj
         self.assertEqual(b'E_BAD_TOPIC', code)
         self.assertEqual(b'PUB topic name "fo/o" is not valid', msg)
-        self.assertIsInstance(obj, NsqErrorMessage)
 
     def test_protocol_error(self):
         ok_raw = b'\x00\x00\x00\x06\x00\x00\x00\x03OK'
@@ -93,22 +88,28 @@ class ParserTest(unittest.TestCase):
 
 class CommandEncoderTest(unittest.TestCase):
 
+    def setUp(self):
+        self.conn = object()
+        self.parser = Reader()
+
+
     def test_sub_command(self):
-        command_raw = encode_command(b'SUB', b'foo', b'bar')
-        command_str = encode_command('SUB', 'foo', 'bar')
+        command_raw = self.parser.encode_command(b'SUB', b'foo', b'bar')
+        command_str = self.parser.encode_command('SUB', 'foo', 'bar')
         self.assertEqual(command_raw, b'SUB foo bar\n')
         self.assertEqual(command_str, b'SUB foo bar\n')
 
     def test_pub_command(self):
-        command_raw = encode_command(b'PUB', b'foo', data=b'test_msg')
-        command_str = encode_command('PUB', 'foo', data='test_msg')
+        command_raw = self.parser.encode_command(b'PUB', b'foo',
+                                                 data=b'test_msg')
+        command_str = self.parser.encode_command('PUB', 'foo', data='test_msg')
         self.assertEqual(command_raw, b'PUB foo\n\x00\x00\x00\x08test_msg')
         self.assertEqual(command_str, b'PUB foo\n\x00\x00\x00\x08test_msg')
 
     def test_pub_different_payload(self):
-        cmd_with_int = encode_command('PUB', b'foo', data=42)
-        cmd_with_float = encode_command('PUB', 'foo', data=3.14)
-        cmd_with_bytearray = encode_command('PUB', 'foo',
+        cmd_with_int = self.parser.encode_command('PUB', b'foo', data=42)
+        cmd_with_float = self.parser.encode_command('PUB', 'foo', data=3.14)
+        cmd_with_bytearray = self.parser.encode_command('PUB', 'foo',
                                             data=bytearray(b'foo'))
 
         self.assertEqual(cmd_with_int, b'PUB foo\n\x00\x00\x00\x0242')
@@ -117,17 +118,19 @@ class CommandEncoderTest(unittest.TestCase):
 
     def test_pub_not_converatble_payload(self):
         with self.assertRaises(TypeError):
-            encode_command(b'PUB', b'foo', data=object())
+            self.parser.encode_command(b'PUB', b'foo', data=object())
 
     def test_nop_command(self):
-        command_raw = encode_command(b'NOP')
+        command_raw = self.parser.encode_command(b'NOP')
         self.assertEqual(command_raw, b'NOP\n')
 
     def test_mpub_command(self):
-        command_raw = encode_command(b'MPUB', b'topic', data=[b'foo', b'bar'])
+        command_raw = self.parser.encode_command(b'MPUB', b'topic',
+                                                 data=[b'foo', b'bar'])
         required_command = b'MPUB topic\n\x00\x00\x00\x12\x00\x00\x00\x02' \
                            b'\x00\x00\x00\x03foo\x00\x00\x00\x03bar'
         self.assertEqual(command_raw, required_command)
 
-        command_raw = encode_command(b'MPUB', 'topic', data=['foo', 'bar'])
+        command_raw = self.parser.encode_command(b'MPUB', 'topic',
+                                                 data=['foo', 'bar'])
         self.assertEqual(command_raw, required_command)

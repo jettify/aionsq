@@ -17,3 +17,4 @@ MAGIC_V2 = b'  V2'
 
 HEARTBEAT = b'_heartbeat_'
 PULSE = b'NOP\n'
+BIN_OK = b'\x00\x00\x00\x06\x00\x00\x00\x00OK'

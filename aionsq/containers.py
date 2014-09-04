@@ -11,52 +11,19 @@ class NsqMessage(BaseMessage):
 
     @asyncio.coroutine
     def fin(self):
-        """XXX"""
-        return (yield from self.conn.fin(self.message_id))
+        """Finish a message (indicate successful processing)"""
+        return (yield from self.conn.execute(b'FIN', self.message_id))
 
     @asyncio.coroutine
     def req(self, timeout=10):
-        """XXX
+        """Re-queue a message (indicate failure to process)
 
-        :param timeout:
+        :param timeout: ``int`` configured max timeout  0 is a special case
+            that will not defer re-queueing
         """
-        return (yield from self.conn.req(self.message_id, timeout))
+        return (yield from self.conn.execute(b'REQ', self.message_id, timeout))
 
     @asyncio.coroutine
     def touch(self):
-        """XXX"""
-        return (yield from self.conn.touch(self.message_id))
-
-
-class NsqMessageSecondVariant(object):
-    """XXX"""
-
-    __slots__ = ('timestamp', 'attempts', 'message_id', 'message', '_conn')
-
-    def __init__(self, timestamp, attempts, message_id, message, conn):
-        self.timestamp = timestamp
-        self.attempts = attempts
-        self.message_id = message_id
-        self.message = message
-        self._conn = conn
-
-    @asyncio.coroutine
-    def fin(self):
-        """XXX"""
-        return (yield from self.conn.fin(self.message_id))
-
-    @asyncio.coroutine
-    def req(self, timeout=10):
-        """XXX
-
-        :param timeout:
-        """
-        return (yield from self.conn.req(self.message_id, timeout))
-
-    @asyncio.coroutine
-    def touch(self):
-        """XXX"""
-        return (yield from self.conn.touch(self.message_id))
-
-    def __repr__(self):
-        return '<NsqMessage: {}>'.format(self.__slots__)
+        """Reset the timeout for an in-flight message"""
+        return (yield from self.conn.execute(b'TOUCH', self.message_id))

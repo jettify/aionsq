@@ -1,14 +1,14 @@
 import asyncio
-from asyncio import CancelledError
 import json
+import ssl
+
 from collections import deque
-from aionsq.containers import NsqMessage, NsqErrorMessage
-from .consts import MAX_CHUNK_SIZE, MAGIC_V2, FRAME_TYPE_RESPONSE, \
-    FRAME_TYPE_ERROR, FRAME_TYPE_MESSAGE, HEARTBEAT
+
+from . import consts
+from .containers import NsqMessage, NsqErrorMessage
 from .exceptions import ProtocolError
 from .protocol import Reader, DeflateReader, SnappyReader
 
-import ssl
 
 @asyncio.coroutine
 def create_connection(host='localhost', port=4151, queue=None, loop=None):
@@ -65,7 +65,7 @@ class NsqConnection:
 
     @property
     def id(self):
-        return "nsq {}:{}".format(self._host, self._port)
+        return "Connection {}:{}".format(self._host, self._port)
 
     @property
     def closed(self):
@@ -78,8 +78,6 @@ class NsqConnection:
 
     def close(self):
         """Close connection."""
-        cls = self._parser.encode_command(b'CLS')
-        yield from self.execute(cls)
         self._do_close()
 
     def _do_close(self, exc=None):
@@ -88,9 +86,10 @@ class NsqConnection:
         self._closed = True
         self._closing = False
         self._writer.transport.close()
+        self._reader_task.cancel()
 
     def _send_magic(self):
-        self._writer.write(MAGIC_V2)
+        self._writer.write(consts.MAGIC_V2)
 
     def _pulse(self):
         nop = self._parser.encode_command(b'NOP')
@@ -110,9 +109,10 @@ class NsqConnection:
             sock=raw_sock, ssl=ssl_context, loop=self._loop,
             server_hostname=self._host)
         bin_ok = yield from self._reader.readexactly(10)
-        if bin_ok != b'\x00\x00\x00\x06\x00\x00\x00\x00OK':
+        if bin_ok != consts.BIN_OK:
             raise RuntimeError('Upgrade to TLS failed, got: {}'.format(bin_ok))
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
+
 
     def _upgrade_to_snappy(self):
         self._parser = SnappyReader(self._parser.buffer)
@@ -132,9 +132,9 @@ class NsqConnection:
         is_canceled = False
         while not self._reader.at_eof():
             try:
-                data = yield from self._reader.read(MAX_CHUNK_SIZE)
-                print(".......", data)
-            except CancelledError:
+                data = yield from self._reader.read(consts.MAX_CHUNK_SIZE)
+                print('========', data)
+            except asyncio.CancelledError:
                 is_canceled = True
                 break
             except Exception as exc:
@@ -163,18 +163,19 @@ class NsqConnection:
                 return False
 
             resp_type, resp = obj
-            if resp_type == FRAME_TYPE_RESPONSE and resp == HEARTBEAT:
+            if resp_type == consts.FRAME_TYPE_RESPONSE and \
+                            resp == consts.HEARTBEAT:
                 self._pulse()
-            elif resp_type == FRAME_TYPE_RESPONSE:
+            elif resp_type == consts.FRAME_TYPE_RESPONSE:
                 waiter, cb = self._cmd_waiters.popleft()
                 waiter.set_result(resp)
                 cb is not None and cb(resp)
-            elif resp_type == FRAME_TYPE_ERROR:
+            elif resp_type == consts.FRAME_TYPE_ERROR:
                 waiter, cb = self._cmd_waiters.popleft()
                 code, err_msg = resp
                 waiter.set_exception(NsqErrorMessage(code, err_msg))
                 cb is not None and cb(resp)
-            elif resp_type == FRAME_TYPE_MESSAGE:
+            elif resp_type == consts.FRAME_TYPE_MESSAGE:
                 ts, att, msg_id, body = resp
                 msg = NsqMessage(ts, att, msg_id, body, self)
                 self._msq_queue.put_nowait(msg)
@@ -193,10 +194,9 @@ class NsqConnection:
         self._is_upgrading = False
 
     @asyncio.coroutine
-    def identify(self, **kwargs):
-        # TODO: fix kwargs, move
-        data = json.dumps(kwargs)
-
+    def identify(self, **config):
+        # TODO: add config validator
+        data = json.dumps(config)
         resp = yield from self.execute(
             b'IDENTIFY', data=data, cb=self._start_upgrading)
         if resp in (b'OK', 'OK'):
@@ -217,91 +217,6 @@ class NsqConnection:
             assert ok == b'OK'
         return resp
 
-    @asyncio.coroutine
-    def auth(self, secret):
-        """
-
-        :param secret:
-        :return:
-        """
-        return (yield from self._conn.execute(b'AUTH', data=secret))
-
-    @asyncio.coroutine
-    def sub(self, topic, channel):
-        """
-
-        :param topic:
-        :param channel:
-        :return:
-        """
-        return (yield from self.execute(b'SUB', topic, channel))
-
-    @asyncio.coroutine
-    def pub(self, topic, message):
-        """
-
-        :param topic:
-        :param message:
-        :return:
-        """
-        return (yield from self.execute(b'PUB', topic, data=message))
-
-    @asyncio.coroutine
-    def mpub(self, topic, message, *messages):
-        """
-
-        :param topic:
-        :param message:
-        :param messages:
-        :return:
-        """
-        msgs = [message] + messages
-        return (yield from self.execute(b'MPUB', topic, data=msgs))
-
-    @asyncio.coroutine
-    def rdy(self, count):
-        """
-
-        :param count:
-        :return:
-        """
-        return (yield from self.execute(b'RDY', count))
-
-    @asyncio.coroutine
-    def fin(self, message_id):
-        """
-
-        :param message_id:
-        :return:
-        """
-        return (yield from self.execute(b'FIN', message_id))
-
-    @asyncio.coroutine
-    def req(self, message_id, timeout):
-        """
-
-        :param message_id:
-        :param timeout:
-        :return:
-        """
-        return (yield from self.execute(b'REQ', message_id, timeout))
-
-    @asyncio.coroutine
-    def touch(self, message_id):
-        """
-
-        :param message_id:
-        :return:
-        """
-        return (yield from self.execute(b'TOUCH', message_id))
-
-    @asyncio.coroutine
-    def cls(self):
-        """
-
-        :return:
-        """
-        return (yield from self.execute(b'CLS'))
 
     def __repr__(self):
         return '<NsqConnection: {}:{}'.format(self._host, self._port)

@@ -39,6 +39,9 @@ Simple low-level interface:
     if __name__ == '__main__':
         main()
 
+
+High-level interface for one nsq connection:
+
 .. code:: python
 
     import asyncio
@@ -60,12 +63,8 @@ Simple low-level interface:
         loop.run_until_complete(go())
 
 
-if __name__ == '__main__':
-    main()
-
-
-
-
+    if __name__ == '__main__':
+        main()
 
 
 Requirements

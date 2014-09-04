@@ -133,7 +133,6 @@ class NsqConnection:
         while not self._reader.at_eof():
             try:
                 data = yield from self._reader.read(consts.MAX_CHUNK_SIZE)
-                print('========', data)
             except asyncio.CancelledError:
                 is_canceled = True
                 break
@@ -210,13 +209,12 @@ class NsqConnection:
         if resp_config.get('snappy'):
             fut = self._upgrade_to_snappy()
         elif resp_config.get('deflate'):
-            fut = yield from self._upgrade_to_deflate()
+            fut = self._upgrade_to_deflate()
         self._finish_upgrading()
         if fut:
             ok = yield from fut
             assert ok == b'OK'
         return resp
-
 
     def __repr__(self):
         return '<NsqConnection: {}:{}'.format(self._host, self._port)

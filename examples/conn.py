@@ -1,5 +1,5 @@
 import asyncio
-from aionsq.connection import create_connection
+from aionsq.nsq import create_nsq
 
 
 def main():
@@ -7,27 +7,23 @@ def main():
     loop = asyncio.get_event_loop()
     @asyncio.coroutine
     def go():
-        nsq = yield from create_connection(port=4150, loop=loop)
-        resp = yield from nsq.identify(**{
-                    "client_id": "metrics_increment",
-                    "hostname": "localhost",
-                    "heartbeat_interval": 30000,
-                    "feature_negotiation": True,
-                    # "tls_v1": True,
-                    # "snappy": True,
-                    # "sample_rate": 50,
-                    # "deflate": True, "deflate_level": 6,
-            })
-        print(resp)
+        nsq = yield from create_nsq(host='127.0.0.1', port=4150,
+                                    heartbeat_interval=30000,
+                                    feature_negotiation=True,
+                                    tls_v1=True,
+                                    # snappy=True,
+                                    deflate=True,
+                                    deflate_level=0,
+                                    loop=loop)
+
         yield from nsq.pub(b'foo', b'msg foo')
         yield from nsq.sub(b'foo', b'bar')
         yield from nsq.rdy(1)
-        msg = yield from nsq._msq_queue.get()
-        yield from nsq.fin(msg.message_id)
+        msg = yield from nsq.wait_messages()
         print(msg)
-        yield from nsq.close()
+        yield from msg.fin()
+        yield from nsq.cls()
 
-        import ipdb; ipdb.set_trace()
     loop.run_until_complete(go())
 
 

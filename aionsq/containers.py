@@ -1,5 +1,9 @@
 import asyncio
 from collections import namedtuple
+from .consts import TOUCH, REQ, FIN
+
+
+__all__ = ['NsqMessage', 'NsqErrorMessage']
 
 
 NsqErrorMessage = namedtuple('NsqError', ['code', 'msg'])
@@ -9,10 +13,21 @@ BaseMessage = namedtuple('NsqMessage',
 
 class NsqMessage(BaseMessage):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, *kwargs)
+        self._is_processed = False
+
+    @property
+    def processed(self):
+        """True if message has been processed: finished or re-queued."""
+        return self._is_processed
+
     @asyncio.coroutine
     def fin(self):
         """Finish a message (indicate successful processing)"""
-        return (yield from self.conn.execute(b'FIN', self.message_id))
+        resp = (yield from self.conn.execute(FIN, self.message_id))
+        self._is_processed = True
+        return resp
 
     @asyncio.coroutine
     def req(self, timeout=10):
@@ -21,9 +36,12 @@ class NsqMessage(BaseMessage):
         :param timeout: ``int`` configured max timeout  0 is a special case
             that will not defer re-queueing
         """
-        return (yield from self.conn.execute(b'REQ', self.message_id, timeout))
+        resp = yield from self.conn.execute(REQ, self.message_id, timeout)
+        self._is_processed = True
+        return resp
+
 
     @asyncio.coroutine
     def touch(self):
         """Reset the timeout for an in-flight message"""
-        return (yield from self.conn.execute(b'TOUCH', self.message_id))
+        return (yield from self.conn.execute(TOUCH, self.message_id))

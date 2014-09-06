@@ -6,7 +6,7 @@ from collections import deque
 
 from . import consts
 from .containers import NsqMessage, NsqErrorMessage
-from .exceptions import ProtocolError
+from .exceptions import ProtocolError, make_error
 from .protocol import Reader, DeflateReader, SnappyReader
 
 
@@ -65,7 +65,7 @@ class NsqConnection:
 
     @property
     def id(self):
-        return "Connection {}:{}".format(self._host, self._port)
+        return "{}:{}".format(self._host, self._port)
 
     @property
     def closed(self):
@@ -171,8 +171,8 @@ class NsqConnection:
                 cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_ERROR:
                 waiter, cb = self._cmd_waiters.popleft()
-                code, err_msg = resp
-                waiter.set_exception(NsqErrorMessage(code, err_msg))
+                error = make_error(*resp)
+                waiter.set_exception(error)
                 cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
                 ts, att, msg_id, body = resp

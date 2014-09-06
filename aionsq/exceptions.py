@@ -1,4 +1,3 @@
-__author__ = 'nick'
 
 class NSQException(Exception):
     """XXX"""
@@ -117,6 +116,5 @@ ERROR_CODES = {
 # E_REQ_FAILED fatal
 # E_FIN_FAILED
 
-def make_error(error_code):
-    parts = error_code.split(None, 1)
-    return ERROR_CODES.get(parts[0], NSQErrorCode)(parts[-1])
+def make_error(code, error_message):
+    return ERROR_CODES.get(code, NSQErrorCode)(error_message)

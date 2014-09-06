@@ -5,28 +5,21 @@
 import abc
 import struct
 import zlib
+
 try:
     import snappy
 except ImportError:
     snappy = None
 
-from .exceptions import ProtocolError
 from . import consts
+from .exceptions import ProtocolError
+from .utils import _convert_value
 
 
 __all__ = ['Reader', 'DeflateReader', 'SnappyReader']
 
 
-_converters = {
-    bytes: lambda val: val,
-    bytearray: lambda val: val,
-    str: lambda val: val.encode('utf-8'),
-    int: lambda val: str(val).encode('utf-8'),
-    float: lambda val: str(val).encode('utf-8'),
-    }
-
-
-class BaseReader:
+class BaseReader(metaclass=abc.ABCMeta):
 
     def __init__(self):
         self._buffer = bytearray()
@@ -119,15 +112,6 @@ def _encode_body(data):
     _data = _convert_value(data)
     result = struct.pack('>l', len(_data)) + _data
     return result
-
-
-def _convert_value(value):
-    if type(value) in _converters:
-        converted_value = _converters[type(value)](value)
-    else:
-        raise TypeError("Argument {!r} expected to be of bytes,"
-                        " str, int or float type".format(value))
-    return converted_value
 
 
 class Reader:

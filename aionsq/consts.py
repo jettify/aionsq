@@ -19,6 +19,13 @@ HEARTBEAT = b'_heartbeat_'
 PULSE = b'NOP\n'
 BIN_OK = b'\x00\x00\x00\x06\x00\x00\x00\x00OK'
 
+# nsq TCP commands
 FIN = b'FIN'
 REQ = b'REQ'
 TOUCH = b'TOUCH'
+RDY = b'RDY'
+MPUB = b'MPUB'
+CLS = b'CLS'
+AUTH = b'AUTH'
+SUB = b'SUB'
+PUB = b'PUB'

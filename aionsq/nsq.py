@@ -1,14 +1,14 @@
 import asyncio
+
 from .connection import create_connection
+from .consts import TOUCH, REQ, FIN, RDY, CLS, MPUB, PUB, SUB, AUTH
 
 
 @asyncio.coroutine
-def create_nsq(host='127.0.0.1', port=4151, queue=None,
+def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
                heartbeat_interval=30000, feature_negotiation=True, tls_v1=True,
                snappy=False, deflate=False, deflate_level=6,
-               output_buffer_timeout='250ms',
-               output_buffer_size=16,
-               sample_rate=0, loop=None):
+               sample_rate=0):
     # TODO: add parameters type and value validation
     config = {
         "deflate": deflate,
@@ -18,8 +18,6 @@ def create_nsq(host='127.0.0.1', port=4151, queue=None,
         "tls_v1": tls_v1,
         "heartbeat_interval": heartbeat_interval,
         'feature_negotiation': feature_negotiation,
-        # 'output_buffer_timeout': output_buffer_timeout,
-        # 'output_buffer_size': output_buffer_size,
     }
     queue = queue or asyncio.Queue(loop)
     conn = yield from create_connection(host=host, port=port, queue=queue, loop=loop)
@@ -34,6 +32,9 @@ class Nsq:
         self._loop = loop
         self._queue = queue or asyncio.Queue(self._loop)
 
+    @property
+    def id(self):
+        return self._conn.endpoint
 
     @asyncio.coroutine
     def wait_messages(self):
@@ -46,7 +47,7 @@ class Nsq:
         :param secret:
         :return:
         """
-        return (yield from self._conn.execute(b'AUTH', data=secret))
+        return (yield from self._conn.execute(AUTH, data=secret))
 
     @asyncio.coroutine
     def sub(self, topic, channel):
@@ -56,7 +57,7 @@ class Nsq:
         :param channel:
         :return:
         """
-        return (yield from self._conn.execute(b'SUB', topic, channel))
+        return (yield from self._conn.execute(SUB, topic, channel))
 
     @asyncio.coroutine
     def pub(self, topic, message):
@@ -66,7 +67,7 @@ class Nsq:
         :param message:
         :return:
         """
-        return (yield from self._conn.execute(b'PUB', topic, data=message))
+        return (yield from self._conn.execute(PUB, topic, data=message))
 
     @asyncio.coroutine
     def mpub(self, topic, message, *messages):
@@ -77,8 +78,8 @@ class Nsq:
         :param messages:
         :return:
         """
-        msgs = [message] + messages
-        return (yield from self._conn.execute(b'MPUB', topic, data=msgs))
+        msgs = [message] + list(messages)
+        return (yield from self._conn.execute(MPUB, topic, data=msgs))
 
     @asyncio.coroutine
     def rdy(self, count):
@@ -87,7 +88,7 @@ class Nsq:
         :param count:
         :return:
         """
-        return (yield from self._conn.execute(b'RDY', count))
+        return (yield from self._conn.execute(RDY, count))
 
     @asyncio.coroutine
     def fin(self, message_id):
@@ -96,7 +97,7 @@ class Nsq:
         :param message_id:
         :return:
         """
-        return (yield from self._conn.execute(b'FIN', message_id))
+        return (yield from self._conn.execute(FIN, message_id))
 
     @asyncio.coroutine
     def req(self, message_id, timeout):
@@ -106,7 +107,7 @@ class Nsq:
         :param timeout:
         :return:
         """
-        return (yield from self._conn.execute(b'REQ', message_id, timeout))
+        return (yield from self._conn.execute(REQ, message_id, timeout))
 
     @asyncio.coroutine
     def touch(self, message_id):
@@ -115,7 +116,7 @@ class Nsq:
         :param message_id:
         :return:
         """
-        return (yield from self._conn.execute(b'TOUCH', message_id))
+        return (yield from self._conn.execute(TOUCH, message_id))
 
     @asyncio.coroutine
     def cls(self):
@@ -123,7 +124,7 @@ class Nsq:
 
         :return:
         """
-        yield from self._conn.execute(b'CLS')
+        yield from self._conn.execute(CLS)
         self.close()
 
     def close(self):

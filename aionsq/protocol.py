@@ -13,7 +13,7 @@ except ImportError:
 
 from . import consts
 from .exceptions import ProtocolError
-from .utils import _convert_value
+from .utils import _convert_to_bytes
 
 
 __all__ = ['Reader', 'DeflateReader', 'SnappyReader']
@@ -109,7 +109,7 @@ class SnappyReader(BaseCompressReader):
 
 
 def _encode_body(data):
-    _data = _convert_value(data)
+    _data = _convert_to_bytes(data)
     result = struct.pack('>l', len(_data)) + _data
     return result
 
@@ -123,7 +123,6 @@ class Reader:
         self._is_header = False
         self._frame_type = None
         buffer and self.feed(buffer)
-
 
     @property
     def buffer(self):
@@ -198,8 +197,8 @@ class Reader:
 
     def encode_command(self, cmd, *args, data=None):
         """XXX"""
-        _cmd = _convert_value(cmd.upper().strip())
-        _args = [_convert_value(a) for a in args]
+        _cmd = _convert_to_bytes(cmd.upper().strip())
+        _args = [_convert_to_bytes(a) for a in args]
         body_data, params_data = b'', b''
 
         if len(_args):

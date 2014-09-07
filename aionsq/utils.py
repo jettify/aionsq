@@ -15,7 +15,8 @@ def valid_channel_name(channel):
         return False
     return bool(CHANNEL_NAME_RE.match(channel))
 
-_converters = {
+
+_converters_to_bytes = {
     bytes: lambda val: val,
     bytearray: lambda val: val,
     str: lambda val: val.encode('utf-8'),
@@ -24,9 +25,27 @@ _converters = {
     }
 
 
-def _convert_value(value):
-    if type(value) in _converters:
-        converted_value = _converters[type(value)](value)
+_converters_to_str = {
+    str: lambda val: val,
+    bytearray: lambda val: bytes(val).decode('utf-8'),
+    bytes: lambda val: val.decode('utf-8'),
+    int: lambda val: str(val),
+    float: lambda val: str(val),
+    }
+
+
+def _convert_to_bytes(value):
+    if type(value) in _converters_to_bytes:
+        converted_value = _converters_to_bytes[type(value)](value)
+    else:
+        raise TypeError("Argument {!r} expected to be of bytes,"
+                        " str, int or float type".format(value))
+    return converted_value
+
+
+def _convert_to_str(value):
+    if type(value) in _converters_to_str:
+        converted_value = _converters_to_str[type(value)](value)
     else:
         raise TypeError("Argument {!r} expected to be of bytes,"
                         " str, int or float type".format(value))

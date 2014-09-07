@@ -1,35 +1,33 @@
 import asyncio
 import json
-import logging
 
 import aiohttp
-
-logger = logging.getLogger(__name__)
+from ..utils import _convert_to_str
 
 
 class NsqHTTPConnection:
     """XXX"""
 
-    def __init__(self, endpoint, *, loop):
+    def __init__(self, host='127.0.0.1', port=4150, *, loop):
         self._loop = loop
-        self._endpoint = endpoint
+        self._endpoint = (host, port)
         self._connector = aiohttp.TCPConnector(resolve=True, loop=loop)
-        self._base_url = 'http://{0}:{1}/'.format(*endpoint)
+        self._base_url = 'http://{0}:{1}/'.format(*self._endpoint)
         self._request = aiohttp.request
 
     @property
     def endpoint(self):
-        return self._endpoint
+        return 'http://{0}:{1}'.format(*self._endpoint)
 
     def close(self):
         self._connector.close()
 
     @asyncio.coroutine
     def perform_request(self, method, url, params, body):
-
+        _body = _convert_to_str(body) if body else body
         url = self._base_url + url
         resp = yield from self._request(method, url, params=params,
-                                        data=body, loop=self._loop,
+                                        data=_body, loop=self._loop,
                                         connector=self._connector)
         resp_body = yield from resp.text()
         try:

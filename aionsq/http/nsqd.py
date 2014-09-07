@@ -1,6 +1,6 @@
 import asyncio
-import json
 from .base import NsqHTTPConnection
+from ..utils import _convert_to_str
 
 
 class Nsqd(NsqHTTPConnection):
@@ -39,7 +39,8 @@ class Nsqd(NsqHTTPConnection):
     def mpub(self, topic, *messages):
         """Returns version information."""
         assert len(messages), "Specify one or mor message"
-        msgs = '\n'.join(messages)
+        _msgs = [_convert_to_str(m) for m in messages]
+        msgs = '\n'.join(_msgs)
         resp = yield from self.perform_request(
             'POST', 'mpub', {'topic': topic}, msgs)
         return resp

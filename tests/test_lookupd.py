@@ -9,37 +9,37 @@ class NsqLookupdTest(BaseTest):
 
     @run_until_complete
     def test_ok(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.ping()
         self.assertEqual(res, 'OK')
 
     @run_until_complete
     def test_info(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.info()
         self.assertTrue('version' in res)
 
     @run_until_complete
     def test_lookup(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.lookup('foo')
         self.assertIn('producers', res)
 
     @run_until_complete
     def test_topics(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.topics()
         self.assertIn('topics', res)
 
     @run_until_complete
     def test_channels(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.channels('foo')
         self.assertIn('channels', res)
 
     @run_until_complete
     def test_nodes(self):
-        conn = NsqLookupd(('127.0.0.1', 4161), loop=self.loop)
+        conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.nodes()
         self.assertIn('producers', res)
 

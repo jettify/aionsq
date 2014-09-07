@@ -5,7 +5,7 @@ import ssl
 from collections import deque
 
 from . import consts
-from .containers import NsqMessage, NsqErrorMessage
+from .containers import NsqMessage
 from .exceptions import ProtocolError, make_error
 from .protocol import Reader, DeflateReader, SnappyReader
 
@@ -64,8 +64,8 @@ class NsqConnection:
         return fut
 
     @property
-    def id(self):
-        return "{}:{}".format(self._host, self._port)
+    def endpoint(self):
+        return "tcp://{}:{}".format(self._host, self._port)
 
     @property
     def closed(self):
@@ -79,6 +79,30 @@ class NsqConnection:
     def close(self):
         """Close connection."""
         self._do_close()
+
+    @asyncio.coroutine
+    def identify(self, **config):
+        # TODO: add config validator
+        data = json.dumps(config)
+        resp = yield from self.execute(
+            b'IDENTIFY', data=data, cb=self._start_upgrading)
+        if resp in (b'OK', 'OK'):
+            self._finish_upgrading()
+            return resp
+        resp_config = json.loads(resp.decode('utf-8'))
+        fut = None
+        if resp_config.get('tls_v1'):
+            yield from self._upgrade_to_tls()
+
+        if resp_config.get('snappy'):
+            fut = self._upgrade_to_snappy()
+        elif resp_config.get('deflate'):
+            fut = self._upgrade_to_deflate()
+        self._finish_upgrading()
+        if fut:
+            ok = yield from fut
+            assert ok == b'OK'
+        return resp
 
     def _do_close(self, exc=None):
         if self._closed:
@@ -191,30 +215,6 @@ class NsqConnection:
     def _finish_upgrading(self, resp=None):
         self._read_buffer()
         self._is_upgrading = False
-
-    @asyncio.coroutine
-    def identify(self, **config):
-        # TODO: add config validator
-        data = json.dumps(config)
-        resp = yield from self.execute(
-            b'IDENTIFY', data=data, cb=self._start_upgrading)
-        if resp in (b'OK', 'OK'):
-            self._finish_upgrading()
-            return resp
-        resp_config = json.loads(resp.decode('utf-8'))
-        fut = None
-        if resp_config.get('tls_v1'):
-            yield from self._upgrade_to_tls()
-
-        if resp_config.get('snappy'):
-            fut = self._upgrade_to_snappy()
-        elif resp_config.get('deflate'):
-            fut = self._upgrade_to_deflate()
-        self._finish_upgrading()
-        if fut:
-            ok = yield from fut
-            assert ok == b'OK'
-        return resp
 
     def __repr__(self):
         return '<NsqConnection: {}:{}'.format(self._host, self._port)

@@ -1,6 +1,5 @@
 import asyncio
 from collections import deque
-from .connection import create_connection
 
 
 class BasicNsqClient(object):
@@ -14,32 +13,21 @@ class BasicNsqClient(object):
         self._loop = loop or asyncio.get_event_loop()
         self._connections = deque()
 
+        self._lookupd = None
+        self._producers = []
+        self._lookup_sleep_time = 30
+
     @asyncio.coroutine
     def connect(self):
-        for host, port in self._nsqd_tcp_addresses:
-            conn = yield from create_connection(
-                host, port, queue=self._message_queue, loop=self._loop)
-            import ipdb; ipdb.set_trace()
-            self._connections.append(conn)
-
-    def _get_connection(self):
-        return self._connections.popleft()
-
-    def _return_connection(self, conn):
-        self._connections.append(conn)
+        pass
 
     @asyncio.coroutine
     def _distribute_rdy(self):
-        conn = self._get_connection()
-        yield from conn.rdy(1)
-        self._return_connection(conn)
+        pass
 
     @asyncio.coroutine
     def subscribe(self, topic, channel):
-        self._is_subsribe = True
-        conn = self._get_connection()
-        yield from conn.sub(topic, channel)
-        self._return_connection(conn)
+        pass
 
     def wait_messages(self):
         if not self._is_subsribe:
@@ -53,7 +41,13 @@ class BasicNsqClient(object):
     @asyncio.coroutine
     def publish(self, topic, message):
         conn = self._get_connection()
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         resp = yield from conn.pub(topic, message)
         self._return_connection(conn)
         return resp
+
+    def _query_lookupd(self):
+        while True:
+            producers = yield from self._lookupd.lookup()
+            asyncio.sleep(self._lookup_sleep_time, loop=self._loop)
+            print(producers)

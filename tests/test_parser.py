@@ -4,7 +4,7 @@ from aionsq.protocol import Reader
 
 
 class ParserTest(unittest.TestCase):
-    
+
     def setUp(self):
         self.conn = object()
         self.parser = Reader()
@@ -92,7 +92,6 @@ class CommandEncoderTest(unittest.TestCase):
         self.conn = object()
         self.parser = Reader()
 
-
     def test_sub_command(self):
         command_raw = self.parser.encode_command(b'SUB', b'foo', b'bar')
         command_str = self.parser.encode_command('SUB', 'foo', 'bar')
@@ -109,8 +108,8 @@ class CommandEncoderTest(unittest.TestCase):
     def test_pub_different_payload(self):
         cmd_with_int = self.parser.encode_command('PUB', b'foo', data=42)
         cmd_with_float = self.parser.encode_command('PUB', 'foo', data=3.14)
-        cmd_with_bytearray = self.parser.encode_command('PUB', 'foo',
-                                            data=bytearray(b'foo'))
+        cmd_with_bytearray = self.parser.encode_command(
+            'PUB', 'foo', data=bytearray(b'foo'))
 
         self.assertEqual(cmd_with_int, b'PUB foo\n\x00\x00\x00\x0242')
         self.assertEqual(cmd_with_float, b'PUB foo\n\x00\x00\x00\x043.14')

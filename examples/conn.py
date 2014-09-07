@@ -5,6 +5,7 @@ from aionsq.nsq import create_nsq
 def main():
 
     loop = asyncio.get_event_loop()
+
     @asyncio.coroutine
     def go():
         nsq = yield from create_nsq(host='127.0.0.1', port=4150,

@@ -116,5 +116,6 @@ ERROR_CODES = {
 # E_REQ_FAILED fatal
 # E_FIN_FAILED
 
+
 def make_error(code, error_message):
     return ERROR_CODES.get(code, NSQErrorCode)(error_message)

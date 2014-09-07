@@ -12,6 +12,5 @@ class NsqConnectionTest(BaseTest):
         self.assertIsInstance(nsq, NsqConnection)
         self.assertTrue('NsqConnection' in nsq.__repr__())
         self.assertTrue(not nsq.closed)
-        self.assertTrue(host in nsq.id)
-        self.assertTrue(str(port) in nsq.id)
-
+        self.assertTrue(host in nsq.endpoint)
+        self.assertTrue(str(port) in nsq.endpoint)

@@ -42,4 +42,3 @@ class NsqLookupdTest(BaseTest):
         conn = NsqLookupd('127.0.0.1', 4161, loop=self.loop)
         res = yield from conn.nodes()
         self.assertIn('producers', res)
-

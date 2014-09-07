@@ -20,7 +20,8 @@ def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
         'feature_negotiation': feature_negotiation,
     }
     queue = queue or asyncio.Queue(loop)
-    conn = yield from create_connection(host=host, port=port, queue=queue, loop=loop)
+    conn = yield from create_connection(host=host, port=port, queue=queue,
+                                        loop=loop)
     yield from conn.identify(**config)
     return Nsq(conn, queue, loop=loop)
 

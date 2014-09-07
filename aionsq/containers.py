@@ -8,7 +8,7 @@ __all__ = ['NsqMessage', 'NsqErrorMessage']
 
 NsqErrorMessage = namedtuple('NsqError', ['code', 'msg'])
 BaseMessage = namedtuple('NsqMessage',
-    ['timestamp', 'attempts', 'message_id', 'body', 'conn'])
+                         'timestamp attempts message_id body conn')
 
 
 class NsqMessage(BaseMessage):
@@ -47,7 +47,6 @@ class NsqMessage(BaseMessage):
         resp = yield from self.conn.execute(REQ, self.message_id, timeout)
         self._is_processed = True
         return resp
-
 
     @asyncio.coroutine
     def touch(self):

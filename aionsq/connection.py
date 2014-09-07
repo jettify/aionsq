@@ -5,6 +5,7 @@ import ssl
 from collections import deque
 
 from . import consts
+from aionsq.log import logger
 from .containers import NsqMessage
 from .exceptions import ProtocolError, make_error
 from .protocol import Reader, DeflateReader, SnappyReader
@@ -14,7 +15,7 @@ from .protocol import Reader, DeflateReader, SnappyReader
 def create_connection(host='localhost', port=4151, queue=None, loop=None):
     """XXX"""
     reader, writer = yield from asyncio.open_connection(
-            host, port, loop=loop)
+        host, port, loop=loop)
     conn = NsqConnection(reader, writer, host, port, queue=queue, loop=loop)
     conn.connect()
     return conn
@@ -105,6 +106,8 @@ class NsqConnection:
         return resp
 
     def _do_close(self, exc=None):
+        if exc:
+            logger.error("Connection closed with error: {}".format(exc))
         if self._closed:
             return
         self._closed = True
@@ -137,7 +140,6 @@ class NsqConnection:
             raise RuntimeError('Upgrade to TLS failed, got: {}'.format(bin_ok))
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
 
-
     def _upgrade_to_snappy(self):
         self._parser = SnappyReader(self._parser.buffer)
         fut = asyncio.Future(loop=self._loop)
@@ -151,7 +153,7 @@ class NsqConnection:
         return fut
 
     @asyncio.coroutine
-    def _read_data(self, num_obj=1):
+    def _read_data(self):
         """Response reader task."""
         is_canceled = False
         while not self._reader.at_eof():
@@ -161,6 +163,7 @@ class NsqConnection:
                 is_canceled = True
                 break
             except Exception as exc:
+                logger.debug("Reader task stopped due to: {}".format(exc))
                 break
             self._parser.feed(data)
             not self._is_upgrading and self._read_buffer()
@@ -186,8 +189,8 @@ class NsqConnection:
                 return False
 
             resp_type, resp = obj
-            if resp_type == consts.FRAME_TYPE_RESPONSE and \
-                            resp == consts.HEARTBEAT:
+            hb = consts.HEARTBEAT
+            if resp_type == consts.FRAME_TYPE_RESPONSE and resp == hb:
                 self._pulse()
             elif resp_type == consts.FRAME_TYPE_RESPONSE:
                 waiter, cb = self._cmd_waiters.popleft()

@@ -127,7 +127,6 @@ class Nsqd(NsqHTTPConnection):
             'GET', '/debug/pprof/heap', None, None)
         return resp
 
-
     @asyncio.coroutine
     def debug_pprof_block(self):
         resp = yield from self.perform_request(

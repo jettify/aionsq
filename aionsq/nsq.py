@@ -6,8 +6,8 @@ from .consts import TOUCH, REQ, FIN, RDY, CLS, MPUB, PUB, SUB, AUTH
 
 @asyncio.coroutine
 def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
-               heartbeat_interval=30000, feature_negotiation=True, tls_v1=True,
-               snappy=False, deflate=False, deflate_level=6,
+               heartbeat_interval=30000, feature_negotiation=True,
+               tls_v1=False, snappy=False, deflate=False, deflate_level=6,
                sample_rate=0):
     # TODO: add parameters type and value validation
     config = {
@@ -23,15 +23,15 @@ def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
     conn = yield from create_connection(host=host, port=port, queue=queue,
                                         loop=loop)
     yield from conn.identify(**config)
-    return Nsq(conn, queue, loop=loop)
+    return Nsq(conn, loop=loop)
 
 
 class Nsq:
 
-    def __init__(self, conn, queue=None, loop=None):
+    def __init__(self, conn, loop=None):
         self._conn = conn
         self._loop = loop
-        self._queue = queue or asyncio.Queue(self._loop)
+        self._queue = self._conn._queue
 
     @property
     def id(self):

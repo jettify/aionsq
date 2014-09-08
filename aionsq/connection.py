@@ -32,7 +32,7 @@ class NsqConnection:
         self._loop = loop or asyncio.get_event_loop()
 
         assert isinstance(queue, asyncio.Queue) or queue is None
-        self._msq_queue = queue or asyncio.Queue(loop=self._loop)
+        self._queue = queue or asyncio.Queue(loop=self._loop)
 
         self._parser = Reader()
         # next queue is used for nsq commands
@@ -161,6 +161,7 @@ class NsqConnection:
                 data = yield from self._reader.read(consts.MAX_CHUNK_SIZE)
             except asyncio.CancelledError:
                 is_canceled = True
+                logger.error('Task is canceled')
                 break
             except Exception as exc:
                 logger.debug("Reader task stopped due to: {}".format(exc))
@@ -183,6 +184,7 @@ class NsqConnection:
             # so connection must be closed
             self._closing = True
             self._loop.call_soon(self._do_close, exc)
+            logger.error('ProtocoError is fatal')
             return
         else:
             if obj is False:
@@ -204,7 +206,7 @@ class NsqConnection:
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
                 ts, att, msg_id, body = resp
                 msg = NsqMessage(ts, att, msg_id, body, self)
-                self._msq_queue.put_nowait(msg)
+                self._queue.put_nowait(msg)
             return True
 
     def _read_buffer(self):

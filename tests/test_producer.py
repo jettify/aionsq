@@ -8,7 +8,7 @@ class NsqTCPProducerTest(BaseTest):
     def test_publish(self):
 
         endpoints = [('127.0.0.1', 4150)]
-        config = {'tls_v1': True}
+        config = {'tls_v1': False}
         nsq_producer = yield from create_producer(endpoints, config,
                                                   loop=self.loop)
         ok = yield from nsq_producer.publish('baz', 'producer msg')
@@ -18,7 +18,7 @@ class NsqTCPProducerTest(BaseTest):
     def test_mpublish(self):
 
         endpoints = [('127.0.0.1', 4150)]
-        config = {'tls_v1': True}
+        config = {'tls_v1': False}
         nsq_producer = yield from create_producer(endpoints, config,
                                                   loop=self.loop)
         messages = ['baz:1', b'baz:2', 3.14, 42]

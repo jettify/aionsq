@@ -1,9 +1,26 @@
+import asyncio
 from ._testutils import run_until_complete, BaseTest
 from aionsq.connection import create_connection, NsqConnection
+from aionsq.http import Nsqd
 from aionsq.protocol import Reader, SnappyReader, DeflateReader
 
 
 class NsqConnectionTest(BaseTest):
+
+    def setUp(self):
+        self.topic = b'foo'
+        self.host = '127.0.0.1'
+        self.port = 4150
+        super().setUp()
+
+    def tearDown(self):
+        conn = Nsqd(self.host, self.port+1, loop=self.loop)
+        try:
+            self.loop.run_until_complete(conn.delete_topic(self.topic))
+        except Exception:
+            # TODO: fix
+            pass
+        super().tearDown()
 
     @run_until_complete
     def test_basic_instance(self):
@@ -20,16 +37,15 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     def test_pub_sub(self):
-        host, port = '127.0.0.1', 4150
-        conn = yield from create_connection(host=host, port=port,
-                                           loop=self.loop)
+        conn = yield from create_connection(host=self.host, port=self.port,
+                                            loop=self.loop)
+
         yield from self._pub_sub_rdy_fin(conn)
 
     @run_until_complete
     def test_tls(self):
-        host, port = '127.0.0.1', 4150
-        conn = yield from create_connection(host=host, port=port,
-                                           loop=self.loop)
+        conn = yield from create_connection(host=self.host, port=self.port,
+                                            loop=self.loop)
 
         config = {'feature_negotiation':True, 'tls_v1': True,
                   'snappy': False, 'deflate': False
@@ -40,9 +56,9 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     def test_snappy(self):
-        host, port = '127.0.0.1', 4150
-        conn = yield from create_connection(host=host, port=port,
-                                           loop=self.loop)
+        conn = yield from create_connection(host=self.host, port=self.port,
+                                            loop=self.loop)
+
         config = {'feature_negotiation':True, 'tls_v1': False,
                   'snappy': True, 'deflate': False
         }
@@ -54,9 +70,8 @@ class NsqConnectionTest(BaseTest):
 
     @run_until_complete
     def test_deflate(self):
-        host, port = '127.0.0.1', 4150
-        conn = yield from create_connection(host=host, port=port,
-                                           loop=self.loop)
+        conn = yield from create_connection(host=self.host, port=self.port,
+                                            loop=self.loop)
 
         config = {'feature_negotiation':True, 'tls_v1': False,
                   'snappy': False, 'deflate': True
@@ -67,6 +82,7 @@ class NsqConnectionTest(BaseTest):
         self.assertIsInstance(conn._parser, DeflateReader)
         yield from self._pub_sub_rdy_fin(conn)
 
+    @asyncio.coroutine
     def _pub_sub_rdy_fin(self, conn):
         ok = yield from conn.execute(b'PUB', b'foo', data=b'msg foo')
         self.assertEqual(ok, b'OK')
@@ -76,4 +92,29 @@ class NsqConnectionTest(BaseTest):
         self.assertEqual(msg.processed, False)
         yield from msg.fin()
         self.assertEqual(msg.processed, True)
+        yield from conn.execute(b'CLS')
+
+    @run_until_complete
+    def test_message(self):
+        conn = yield from create_connection(host=self.host, port=self.port,
+                                            loop=self.loop)
+
+        ok = yield from conn.execute(b'PUB', self.topic, data=b'boom')
+        self.assertEqual(ok, b'OK')
+        yield from conn.execute(b'SUB', self.topic,  b'bar')
+        yield from conn.execute(b'RDY', 1)
+
+
+        msg = yield from conn._queue.get()
+        self.assertEqual(msg.processed, False)
+
+        yield from msg.touch()
+        self.assertEqual(msg.processed, False)
+        yield from msg.req(1)
+        self.assertEqual(msg.processed, True)
+        yield from conn.execute(b'RDY', 1)
+        new_msg = yield from conn._queue.get()
+        yield from new_msg.fin()
+        self.assertEqual(msg.processed, True)
+
         yield from conn.execute(b'CLS')

@@ -5,7 +5,7 @@ import ssl
 from collections import deque
 
 from . import consts
-from aionsq.log import logger
+from .log import logger
 from .containers import NsqMessage
 from .exceptions import ProtocolError, make_error
 from .protocol import Reader, DeflateReader, SnappyReader

@@ -5,11 +5,7 @@
 import abc
 import struct
 import zlib
-
-try:
-    import snappy
-except ImportError:
-    snappy = None
+import snappy
 
 from . import consts
 from .exceptions import ProtocolError
@@ -21,28 +17,21 @@ __all__ = ['Reader', 'DeflateReader', 'SnappyReader']
 
 class BaseReader(metaclass=abc.ABCMeta):
 
-    def __init__(self):
-        self._buffer = bytearray()
-
-    @property
-    def buffer(self):
-        return self._buffer
-
-    @abc.abstractmethod
+    @abc.abstractmethod   # pragma: no cover
     def feed(self, chunk):
         """
 
         :return:
         """
 
-    @abc.abstractmethod
+    @abc.abstractmethod  # pragma: no cover
     def gets(self):
         """
 
         :return:
         """
 
-    @abc.abstractmethod
+    @abc.abstractmethod   # pragma: no cover
     def encode_command(self, cmd, *args, data=None):
         """
 
@@ -52,11 +41,21 @@ class BaseReader(metaclass=abc.ABCMeta):
 
 class BaseCompressReader(BaseReader):
 
+    @abc.abstractmethod  # pragma: no cover
     def compress(self, data):
-        raise NotImplementedError()
+        """
 
+        :param data:
+        :return:
+        """
+
+    @abc.abstractmethod  # pragma: no cover
     def decompress(self, chunk):
-        raise NotImplementedError()
+        """
+
+        :param chunk:
+        :return:
+        """
 
     def feed(self, chunk):
         if not chunk:
@@ -94,8 +93,6 @@ class SnappyReader(BaseCompressReader):
 
     def __init__(self, buffer=''):
         self._parser = Reader()
-        if not snappy:
-            ImportError("You must install snappy first")
         self._decompressor = snappy.StreamDecompressor()
         self._compressor = snappy.StreamCompressor()
         self.feed(buffer)

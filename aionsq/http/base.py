@@ -2,7 +2,10 @@ import asyncio
 import json
 
 import aiohttp
+from .http_exceptions import HTTP_EXCEPTIONS, NsqHttpException
 from ..utils import _convert_to_str
+
+
 
 
 class NsqHTTPConnection:
@@ -36,8 +39,14 @@ class NsqHTTPConnection:
             return resp_body
 
         if not (200 <= resp.status <= 300):
-            exc_class = Exception
-            raise exc_class(resp.status, resp_body, response)
+            extra = None
+            try:
+                extra = json.loads(resp_body)
+            except ValueError:
+                pass
+            exc_class = HTTP_EXCEPTIONS.get(resp.status, NsqHttpException)
+            raise exc_class(resp.status, resp_body, extra)
+
         return response['data']
 
     def __repr__(self):

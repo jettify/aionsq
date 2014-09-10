@@ -31,7 +31,7 @@ class Nsq:
     def __init__(self, conn, loop=None):
         self._conn = conn
         self._loop = loop
-        self._queue = self._conn._queue
+        self._queue = self._conn.queue
 
     @property
     def id(self):

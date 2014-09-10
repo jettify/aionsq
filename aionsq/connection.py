@@ -77,6 +77,10 @@ class NsqConnection:
             self._loop.call_soon(self._do_close, None)
         return closed
 
+    @property
+    def queue(self):
+        return self._queue
+
     def close(self):
         """Close connection."""
         self._do_close()

@@ -2,10 +2,15 @@ import asyncio
 from collections import deque
 
 
-class BasicNsqClient(object):
+class NsqConsumer:
     """Experiment purposes"""
 
-    def __init__(self, nsqd_tcp_addresses=[], max_in_flight=2500, loop=None):
+    def __init__(self, nsqd_tcp_addresses=[],
+                 max_in_flight=2500,
+
+
+
+                 loop=None):
         self._nsqd_tcp_addresses = nsqd_tcp_addresses
 
         self.max_in_flight = max_in_flight
@@ -21,9 +26,6 @@ class BasicNsqClient(object):
     def connect(self):
         pass
 
-    @asyncio.coroutine
-    def _distribute_rdy(self):
-        pass
 
     @asyncio.coroutine
     def subscribe(self, topic, channel):
@@ -46,8 +48,19 @@ class BasicNsqClient(object):
         self._return_connection(conn)
         return resp
 
-    def _query_lookupd(self):
-        while True:
-            producers = yield from self._lookupd.lookup()
-            asyncio.sleep(self._lookup_sleep_time, loop=self._loop)
-            print(producers)
+
+
+
+{
+"status_code":200,
+"status_txt":"OK",
+"data":{"channels":["bar"],
+        "producers":[
+            {"remote_address":"127.0.0.1:37275",
+             "hostname":"r2d2",
+             "broadcast_address":"r2d2",
+             "tcp_port":4150,
+             "http_port":4151,
+             "version":"0.2.30"}]
+        }
+}

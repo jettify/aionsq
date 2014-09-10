@@ -1,5 +1,5 @@
 import asyncio
-from aionsq.client import BasicNsqClient
+from aionsq.consumer import NsqConsumer
 
 
 def main():
@@ -9,7 +9,7 @@ def main():
     @asyncio.coroutine
     def go():
         endpoints = [('localhost', 4150)]
-        nsq = BasicNsqClient(nsqd_tcp_addresses=endpoints, loop=loop)
+        nsq = NsqConsumer(nsqd_tcp_addresses=endpoints, loop=loop)
         yield from nsq.connect()
 
         yield from nsq.publish(b'foo', b'bar')

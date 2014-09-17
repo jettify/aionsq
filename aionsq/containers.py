@@ -13,9 +13,10 @@ BaseMessage = namedtuple('NsqMessage',
 
 class NsqMessage(BaseMessage):
 
-    def __init__(self, *a, **kw):
-        super().__init__()
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls, *args, **kwargs)
         self._is_processed = False
+        return self
 
     @property
     def processed(self):

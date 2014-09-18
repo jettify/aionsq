@@ -24,7 +24,8 @@ def create_connection(host='localhost', port=4151, queue=None, loop=None):
 class NsqConnection:
     """XXX"""
 
-    def __init__(self, reader, writer, host, port, *, queue=None, loop=None):
+    def __init__(self, reader, writer, host, port, *, on_message=None,
+                 queue=None, loop=None):
 
         self._reader, self._writer = reader, writer
         self._host, self._port = host, port
@@ -42,6 +43,9 @@ class NsqConnection:
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
         # mark connection in upgrading state to ssl socket
         self._is_upgrading = False
+
+        self._on_message = on_message
+        self._on_close = None
 
     def connect(self):
         self._send_magic()
@@ -119,6 +123,8 @@ class NsqConnection:
         self._writer.transport.close()
         self._reader_task.cancel()
 
+
+
     def _send_magic(self):
         self._writer.write(consts.MAGIC_V2)
 
@@ -143,6 +149,11 @@ class NsqConnection:
         if bin_ok != consts.BIN_OK:
             raise RuntimeError('Upgrade to TLS failed, got: {}'.format(bin_ok))
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
+        self._reader_task.add_done_callback(self._on_reader_task_stopped)
+
+    def _on_reader_task_stopped(self, future):
+        exc = future.exception()
+        logger.error('DONE: TASK {}'.format(exc))
 
     def _upgrade_to_snappy(self):
         self._parser = SnappyReader(self._parser.buffer)
@@ -188,7 +199,7 @@ class NsqConnection:
             # so connection must be closed
             self._closing = True
             self._loop.call_soon(self._do_close, exc)
-            logger.error('ProtocoError is fatal')
+            logger.error('ProtocolError is fatal')
             return
         else:
             if obj is False:
@@ -209,9 +220,16 @@ class NsqConnection:
                 cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
                 ts, att, msg_id, body = resp
-                msg = NsqMessage(ts, att, msg_id, body, self)
-                self._queue.put_nowait(msg)
+                self._got_message(ts, att, msg_id, body)
+                # self._queue.put_nowait(msg)
             return True
+
+    def _got_message(self, ts, att, msg_id, body):
+        msg = NsqMessage(ts, att, msg_id, body, self)
+
+        if self._on_message:
+            msg = self._on_message(msg)
+        self._queue.put_nowait(msg)
 
     def _read_buffer(self):
         is_continue = True

@@ -20,6 +20,7 @@ class BaseTest(unittest.TestCase):
     """
 
     def setUp(self):
+        asyncio.set_event_loop(None)
         self.loop = asyncio.new_event_loop()
 
     def tearDown(self):

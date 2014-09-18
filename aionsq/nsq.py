@@ -1,5 +1,8 @@
 import asyncio
-
+from . import consts
+import time
+from .log import logger
+from .utils import retry_iterator
 from .connection import create_connection
 from .consts import TOUCH, REQ, FIN, RDY, CLS, MPUB, PUB, SUB, AUTH
 
@@ -10,28 +13,90 @@ def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
                tls_v1=False, snappy=False, deflate=False, deflate_level=6,
                sample_rate=0):
     # TODO: add parameters type and value validation
-    config = {
-        "deflate": deflate,
-        "deflate_level": deflate_level,
-        "sample_rate": sample_rate,
-        "snappy": snappy,
-        "tls_v1": tls_v1,
-        "heartbeat_interval": heartbeat_interval,
-        'feature_negotiation': feature_negotiation,
-    }
-    queue = queue or asyncio.Queue(loop)
-    conn = yield from create_connection(host=host, port=port, queue=queue,
-                                        loop=loop)
-    yield from conn.identify(**config)
-    return Nsq(conn, loop=loop)
+    queue = queue or asyncio.Queue(loop=loop)
+    conn =  Nsq(host=host, port=port, queue=queue,
+               heartbeat_interval=heartbeat_interval,
+               feature_negotiation=feature_negotiation,
+               tls_v1=tls_v1, snappy=snappy, deflate=deflate,
+               deflate_level=deflate_level,
+               sample_rate=sample_rate, loop=loop)
+    yield from conn.connect()
+    return conn
+
 
 
 class Nsq:
 
-    def __init__(self, conn, loop=None):
-        self._conn = conn
+    def __init__(self, host='127.0.0.1', port=4150, loop=None, queue=None,
+               heartbeat_interval=30000, feature_negotiation=True,
+               tls_v1=False, snappy=False, deflate=False, deflate_level=6,
+               sample_rate=0):
+        # TODO: add parameters type and value validation
+        self._config = {
+            "deflate": deflate,
+            "deflate_level": deflate_level,
+            "sample_rate": sample_rate,
+            "snappy": snappy,
+            "tls_v1": tls_v1,
+            "heartbeat_interval": heartbeat_interval,
+            'feature_negotiation': feature_negotiation,
+        }
+
+
+        self._host = host
+        self._port = port
+        self._conn = None
         self._loop = loop
-        self._queue = self._conn.queue
+        self._queue = queue or asyncio.Queue(loop=self._loop)
+
+        self._status = consts.INIT
+        self._reconnect = True
+        self._rdy_state = 0
+        self._last_message = None
+
+    @asyncio.coroutine
+    def connect(self):
+        self._conn = yield from create_connection(self._host, self._port,
+                                                  self._queue, loop=self._loop)
+        self._conn._on_message = self._on_message
+        yield from self._conn.identify(**self._config)
+        self._status = consts.CONNECTED
+
+    def _on_message(self, msg):
+        self._rdy_state = max(self._rdy_state - 1, 0)
+        self._last_message = time.time()
+        return msg
+
+    @property
+    def rdy_state(self):
+        return self._rdy_state
+
+    @property
+    def last_message(self):
+        return self._last_message
+
+    @asyncio.coroutine
+    def reconnect(self):
+        timeout_generator = retry_iterator(init_delay=0.1, max_delay=10.0)
+        while not (self._status == consts.CONNECTED):
+            try:
+                yield from self.connect()
+            except ConnectionError:
+                logger.error("Can not connect to: {}:{} ".format(self._host,
+                                                                 self._port))
+            else:
+                self._status = consts.CONNECTED
+            t = next(timeout_generator)
+            asyncio.sleep(t, loop=self._loop)
+
+
+    @asyncio.coroutine
+    def execute(self, command, *args, data=None):
+        if self._state <= consts.CONNECTED and self._reconnect:
+            yield from self.reconnect()
+
+        response = self._conn.execute(command, *args, data=data)
+        return response
 
     @property
     def id(self):
@@ -89,6 +154,7 @@ class Nsq:
         :param count:
         :return:
         """
+        self._rdy_state += count
         return (yield from self._conn.execute(RDY, count))
 
     @asyncio.coroutine
@@ -131,5 +197,9 @@ class Nsq:
     def close(self):
         self._conn.close()
 
+    def is_starve(self):
+        pass
+
     def __repr__(self):
         return '<Nsq{}>'.format(self._conn.__repr__())
+

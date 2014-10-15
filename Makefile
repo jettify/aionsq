@@ -13,7 +13,7 @@ flake:
 	$(PEP) aionsq tests examples
 
 test:
-	$(PYTHON) runtests.py -v
+	$(PYTHON) runtests.py -v 4
 
 cov coverage:
 	$(PYTHON) runtests.py --coverage

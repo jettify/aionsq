@@ -1,66 +1,72 @@
 import asyncio
 from collections import deque
+import time
+from aionsq.nsq import create_nsq
+from aionsq.utils import RdyControl
 
 
 class NsqConsumer:
     """Experiment purposes"""
 
-    def __init__(self, nsqd_tcp_addresses=[],
-                 max_in_flight=2500,
+    def __init__(self, nsqd_tcp_addresses=None, max_in_flight=42, loop=None):
 
-
-
-                 loop=None):
-        self._nsqd_tcp_addresses = nsqd_tcp_addresses
+        self._nsqd_tcp_addresses = nsqd_tcp_addresses or []
 
         self.max_in_flight = max_in_flight
-        self._message_queue = asyncio.Queue()
         self._loop = loop or asyncio.get_event_loop()
-        self._connections = deque()
+        self._queue = asyncio.Queue(loop=self._loop)
 
-        self._lookupd = None
-        self._producers = []
-        self._lookup_sleep_time = 30
+        self._connections = {}
+
+        self._idle_timeout = 15
+
+        self._rdy_control = None
+        self._max_in_flight = max_in_flight
+
+        self._is_subscribe = False
+        self._redistribute_timeout = 5  # sec
 
     @asyncio.coroutine
     def connect(self):
-        pass
+        for host, port in self._nsqd_tcp_addresses:
+            conn = yield from create_nsq(host, port, queue=self._queue,
+                                         loop=self._loop)
+            self._connections[conn.id] = conn
 
+        self._rdy_control = RdyControl(idle_timeout=self._idle_timeout,
+                                       max_in_flight=self._max_in_flight,
+                                       loop=self._loop)
+        self._rdy_control.add_connections(self._connections)
 
     @asyncio.coroutine
     def subscribe(self, topic, channel):
-        pass
+        self._is_subscribe = True
+        for conn in self._connections.values():
+            yield from conn.sub(topic, channel)
+        self._redistribute_task = asyncio.Task(self._redistribute(),
+                                               loop=self._loop)
 
     def wait_messages(self):
-        if not self._is_subsribe:
+        if not self._is_subscribe:
             raise ValueError('You must subscribe to the topic first')
 
-        while self._is_subsribe:
-            fut = asyncio.async(self._message_queue.get(), loop=self._loop)
-            yield from self._distribute_rdy()
+        while self._is_subscribe:
+            fut = asyncio.async(self._queue.get(), loop=self._loop)
             yield fut
 
+    def is_starved(self):
+        return any(conn.is_starved for conn in self._connections.values())
+
     @asyncio.coroutine
-    def publish(self, topic, message):
-        conn = self._get_connection()
-        # import ipdb; ipdb.set_trace()
-        resp = yield from conn.pub(topic, message)
-        self._return_connection(conn)
-        return resp
+    def _redistribute(self):
+        while self._is_subscribe:
+            self._rdy_control.redistribute()
+            yield from asyncio.sleep(self._redistribute_timeout,
+                                     loop=self._loop)
 
-
-
-
-{
-"status_code":200,
-"status_txt":"OK",
-"data":{"channels":["bar"],
-        "producers":[
-            {"remote_address":"127.0.0.1:37275",
-             "hostname":"r2d2",
-             "broadcast_address":"r2d2",
-             "tcp_port":4150,
-             "http_port":4151,
-             "version":"0.2.30"}]
-        }
-}
+    # @asyncio.coroutine
+    # def _lookupd_task(self):
+    #     while self._is_subscribe:
+    #         # TODO: poll lookupd
+    #         yield from asyncio.sleep(self._redistribute_timeout,
+    #                                  loop=self._loop)

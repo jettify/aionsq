@@ -29,3 +29,9 @@ CLS = b'CLS'
 AUTH = b'AUTH'
 SUB = b'SUB'
 PUB = b'PUB'
+
+# connection status
+CLOSED = 0
+INIT = 1
+CONNECTED = 2
+SUBSCRIBED = 3

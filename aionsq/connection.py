@@ -123,8 +123,6 @@ class NsqConnection:
         self._writer.transport.close()
         self._reader_task.cancel()
 
-
-
     def _send_magic(self):
         self._writer.write(consts.MAGIC_V2)
 
@@ -220,11 +218,11 @@ class NsqConnection:
                 cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
                 ts, att, msg_id, body = resp
-                self._got_message(ts, att, msg_id, body)
+                self._on_message_hook(ts, att, msg_id, body)
                 # self._queue.put_nowait(msg)
             return True
 
-    def _got_message(self, ts, att, msg_id, body):
+    def _on_message_hook(self, ts, att, msg_id, body):
         msg = NsqMessage(ts, att, msg_id, body, self)
 
         if self._on_message:

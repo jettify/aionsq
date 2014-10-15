@@ -111,7 +111,7 @@ def _encode_body(data):
     return result
 
 
-class Reader:
+class Reader(BaseReader):
 
     def __init__(self, buffer=None):
 

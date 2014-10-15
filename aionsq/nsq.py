@@ -14,7 +14,7 @@ def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
                sample_rate=0):
     # TODO: add parameters type and value validation
     queue = queue or asyncio.Queue(loop=loop)
-    conn =  Nsq(host=host, port=port, queue=queue,
+    conn = Nsq(host=host, port=port, queue=queue,
                heartbeat_interval=heartbeat_interval,
                feature_negotiation=feature_negotiation,
                tls_v1=tls_v1, snappy=snappy, deflate=deflate,
@@ -54,19 +54,26 @@ class Nsq:
         self._rdy_state = 0
         self._last_message = None
 
+        self._on_rdy_changed_cb = None
+        self.last_rdy = 0
+
     @asyncio.coroutine
     def connect(self):
         self._conn = yield from create_connection(self._host, self._port,
                                                   self._queue, loop=self._loop)
+
         self._conn._on_message = self._on_message
         yield from self._conn.identify(**self._config)
         self._status = consts.CONNECTED
 
     def _on_message(self, msg):
+        # should not be coroutine
+        # update connections rdy state
         self._rdy_state = max(self._rdy_state - 1, 0)
         self._last_message = time.time()
+        if self._on_rdy_changed_cb:
+            self._on_rdy_changed_cb(self.id)
         return msg
-
     @property
     def rdy_state(self):
         return self._rdy_state
@@ -102,9 +109,10 @@ class Nsq:
     def id(self):
         return self._conn.endpoint
 
-    @asyncio.coroutine
     def wait_messages(self):
-        return (yield from self._queue.get())
+        while True:
+            future = asyncio.async(self._queue.get(), loop=self._loop)
+            yield future
 
     @asyncio.coroutine
     def auth(self, secret):
@@ -154,7 +162,9 @@ class Nsq:
         :param count:
         :return:
         """
-        self._rdy_state += count
+        if not isinstance(count, int):
+            raise TypeError('count argument must be int')
+        self._last_rdy = count
         return (yield from self._conn.execute(RDY, count))
 
     @asyncio.coroutine
@@ -197,9 +207,9 @@ class Nsq:
     def close(self):
         self._conn.close()
 
-    def is_starve(self):
-        pass
+    def is_starved(self):
+        starved = self.in_flight > 0 and self.in_flight >= (self._last_rdy * 0.85)
+        return starved
 
     def __repr__(self):
         return '<Nsq{}>'.format(self._conn.__repr__())
-

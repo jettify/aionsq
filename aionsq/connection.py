@@ -47,6 +47,9 @@ class NsqConnection:
         self._on_message = on_message
         self._on_close = None
 
+        # number of received but not acked or req messages
+        self._in_flight = 0
+
     def connect(self):
         self._send_magic()
 
@@ -64,9 +67,18 @@ class NsqConnection:
             fut.set_result(b'OK')
         else:
             self._cmd_waiters.append((fut, cb))
+
         command_raw = self._parser.encode_command(command, *args, data=data)
         self._writer.write(command_raw)
+
+        # track all processed and requeued messages
+        if command in (b'FIN', b'REQ', 'FIN', 'REQ'):
+            self._in_flight = max(0,  self._in_flight - 1)
         return fut
+
+    @property
+    def in_flight(self):
+        return self._in_flight
 
     @property
     def endpoint(self):
@@ -217,6 +229,10 @@ class NsqConnection:
                 waiter.set_exception(error)
                 cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
+
+                # track number in flight messages
+                self._in_flight += 1
+
                 ts, att, msg_id, body = resp
                 self._on_message_hook(ts, att, msg_id, body)
                 # self._queue.put_nowait(msg)

@@ -18,7 +18,7 @@ class NsqConsumer:
 
         self._connections = {}
 
-        self._idle_timeout = 15
+        self._idle_timeout = 10
 
         self._rdy_control = None
         self._max_in_flight = max_in_flight
@@ -55,7 +55,8 @@ class NsqConsumer:
             yield fut
 
     def is_starved(self):
-        return any(conn.is_starved for conn in self._connections.values())
+        conns = self._connections.values()
+        return any(conn.is_starved() for conn in conns)
 
     @asyncio.coroutine
     def _redistribute(self):

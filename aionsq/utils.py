@@ -170,10 +170,7 @@ class RdyControl:
     @asyncio.coroutine
     def _update_rdy(self, conn_id):
         conn = self._connections[conn_id]
-
-        if conn.rdy_state > int(conn._last_rdy * 0.25):
+        if conn._rdy_state > int(conn._last_rdy * 0.25):
             return
-        print('conn.rdy_state: ', conn.rdy_state)
-        print('int(conn._last_rdy * 0.25): ', int(conn._last_rdy * 0.25))
         rdy_state = max(1, self._max_in_flight / max(1, len(self._connections)))
         yield from conn.rdy(int(rdy_state))

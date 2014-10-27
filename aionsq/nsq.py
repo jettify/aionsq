@@ -55,7 +55,8 @@ class Nsq:
         self._last_message = None
 
         self._on_rdy_changed_cb = None
-        self.last_rdy = 0
+        self._last_rdy = 0
+
 
     @asyncio.coroutine
     def connect(self):
@@ -69,14 +70,22 @@ class Nsq:
     def _on_message(self, msg):
         # should not be coroutine
         # update connections rdy state
-        self._rdy_state = max(self._rdy_state - 1, 0)
+        # print('OLD: _rdy_state: {}'.format(self._rdy_state))
+        self._rdy_state = self._rdy_state - 1
+        # print('NEW: _rdy_state: {}'.format(self._rdy_state))
+
         self._last_message = time.time()
         if self._on_rdy_changed_cb:
             self._on_rdy_changed_cb(self.id)
         return msg
+
     @property
     def rdy_state(self):
         return self._rdy_state
+
+    @property
+    def in_flight(self):
+        return self._conn.in_flight
 
     @property
     def last_message(self):
@@ -89,12 +98,12 @@ class Nsq:
             try:
                 yield from self.connect()
             except ConnectionError:
-                logger.error("Can not connect to: {}:{} ".format(self._host,
-                                                                 self._port))
+                logger.error("Can not connect to: {}:{} ".format(
+                    self._host, self._port))
             else:
                 self._status = consts.CONNECTED
             t = next(timeout_generator)
-            asyncio.sleep(t, loop=self._loop)
+            yield from asyncio.sleep(t, loop=self._loop)
 
 
     @asyncio.coroutine
@@ -164,7 +173,9 @@ class Nsq:
         """
         if not isinstance(count, int):
             raise TypeError('count argument must be int')
+
         self._last_rdy = count
+        self._rdy_state = count
         return (yield from self._conn.execute(RDY, count))
 
     @asyncio.coroutine
@@ -208,7 +219,10 @@ class Nsq:
         self._conn.close()
 
     def is_starved(self):
-        starved = self.in_flight > 0 and self.in_flight >= (self._last_rdy * 0.85)
+        if self._queue.qsize():
+            return False
+        starved = (self.in_flight > 0 and
+                   self.in_flight >= (self._last_rdy * 0.85))
         return starved
 
     def __repr__(self):

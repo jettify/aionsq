@@ -219,10 +219,14 @@ class Nsq:
         self._conn.close()
 
     def is_starved(self):
+
         if self._queue.qsize():
-            return False
-        starved = (self.in_flight > 0 and
-                   self.in_flight >= (self._last_rdy * 0.85))
+            starved = False
+        else:
+            starved = (self.in_flight > 0 and
+                       self.in_flight >= (self._last_rdy * 0.85))
+        print('CURRENT STARVED: {}'.format(starved))
+        print(self._queue.qsize(), self.in_flight, self._last_rdy)
         return starved
 
     def __repr__(self):

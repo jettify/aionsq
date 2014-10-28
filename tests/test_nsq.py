@@ -63,19 +63,25 @@ class NsqTest(BaseTest):
         for i in range(0, 100):
             yield from nsq.pub(b'foo', b'xxx:i')
 
-
+        yield from asyncio.sleep(0.1, loop=self.loop)
         consumer = NsqConsumer(nsqd_tcp_addresses=[(self.host, self.port)],
                                max_in_flight=30, loop=self.loop)
         yield from consumer.connect()
         yield from consumer.subscribe(b'foo', b'bar')
 
+        msgs = []
         for i, waiter in enumerate(consumer.wait_messages()):
+
+            # yield from msg.fin()
+            print('-----msgs', len(msgs))
+            is_starved = consumer.is_starved()
+
+
+            if is_starved:
+                print(">>>>>>>>msgs in list: {}".format(len((msgs))))
+                for m in msgs:
+                    yield from m.fin()
+                msgs = []
+
             msg = yield from waiter
-            print("||||||||||||||||| GOT: ", i, "---",  msg)
-            # import ipdb; ipdb.set_trace()
-            # self.assertTrue(msg)
-            yield from msg.fin()
-            # if not i % 98:
-            #     break
-        while True:
-            consumer.is_starved()
+            msgs.append(msg)

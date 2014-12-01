@@ -24,7 +24,6 @@ def create_nsq(host='127.0.0.1', port=4150, loop=None, queue=None,
     return conn
 
 
-
 class Nsq:
 
     def __init__(self, host='127.0.0.1', port=4150, loop=None, queue=None,
@@ -70,18 +69,20 @@ class Nsq:
     def _on_message(self, msg):
         # should not be coroutine
         # update connections rdy state
-        # print('OLD: _rdy_state: {}'.format(self._rdy_state))
-        self._rdy_state = self._rdy_state - 1
-        # print('NEW: _rdy_state: {}'.format(self._rdy_state))
+        self.rdy_state = int(self.rdy_state) - 1
 
         self._last_message = time.time()
-        if self._on_rdy_changed_cb:
+        if self._on_rdy_changed_cb is not None:
             self._on_rdy_changed_cb(self.id)
         return msg
 
     @property
     def rdy_state(self):
         return self._rdy_state
+
+    @rdy_state.setter
+    def rdy_state(self, value):
+        self._rdy_state = value
 
     @property
     def in_flight(self):
@@ -175,7 +176,7 @@ class Nsq:
             raise TypeError('count argument must be int')
 
         self._last_rdy = count
-        self._rdy_state = count
+        self.rdy_state = count
         return (yield from self._conn.execute(RDY, count))
 
     @asyncio.coroutine
@@ -225,8 +226,6 @@ class Nsq:
         else:
             starved = (self.in_flight > 0 and
                        self.in_flight >= (self._last_rdy * 0.85))
-        print('CURRENT STARVED: {}'.format(starved))
-        print(self._queue.qsize(), self.in_flight, self._last_rdy)
         return starved
 
     def __repr__(self):

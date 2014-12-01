@@ -43,7 +43,6 @@ class NsqConnection:
         self._reader_task = asyncio.Task(self._read_data(), loop=self._loop)
         # mark connection in upgrading state to ssl socket
         self._is_upgrading = False
-
         self._on_message = on_message
         self._on_close = None
 
@@ -69,6 +68,7 @@ class NsqConnection:
             self._cmd_waiters.append((fut, cb))
 
         command_raw = self._parser.encode_command(command, *args, data=data)
+        logger.debug('execute command %s' % command_raw)
         self._writer.write(command_raw)
 
         # track all processed and requeued messages
@@ -214,7 +214,7 @@ class NsqConnection:
         else:
             if obj is False:
                 return False
-
+            logger.debug("got nsq data: %s", obj)
             resp_type, resp = obj
             hb = consts.HEARTBEAT
             if resp_type == consts.FRAME_TYPE_RESPONSE and resp == hb:
@@ -240,7 +240,6 @@ class NsqConnection:
 
     def _on_message_hook(self, ts, att, msg_id, body):
         msg = NsqMessage(ts, att, msg_id, body, self)
-
         if self._on_message:
             msg = self._on_message(msg)
         self._queue.put_nowait(msg)

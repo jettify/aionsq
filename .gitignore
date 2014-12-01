@@ -42,7 +42,7 @@ coverage.xml
 .project
 .pydevproject
 
-#PyCharm
+# PyCharm
 .idea/
 
 # Rope
@@ -54,3 +54,5 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+*.dat

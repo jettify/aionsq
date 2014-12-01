@@ -6,8 +6,6 @@ from .http_exceptions import HTTP_EXCEPTIONS, NsqHttpException
 from ..utils import _convert_to_str
 
 
-
-
 class NsqHTTPConnection:
     """XXX"""
 

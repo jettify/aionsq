@@ -19,7 +19,7 @@ def valid_channel_name(channel):
     return bool(CHANNEL_NAME_RE.match(channel))
 
 
-_converters_to_bytes = {
+_converters_to_bytes_map = {
     bytes: lambda val: val,
     bytearray: lambda val: val,
     str: lambda val: val.encode('utf-8'),
@@ -28,7 +28,7 @@ _converters_to_bytes = {
     }
 
 
-_converters_to_str = {
+_converters_to_str_map = {
     str: lambda val: val,
     bytearray: lambda val: bytes(val).decode('utf-8'),
     bytes: lambda val: val.decode('utf-8'),
@@ -38,8 +38,8 @@ _converters_to_str = {
 
 
 def _convert_to_bytes(value):
-    if type(value) in _converters_to_bytes:
-        converted_value = _converters_to_bytes[type(value)](value)
+    if type(value) in _converters_to_bytes_map:
+        converted_value = _converters_to_bytes_map[type(value)](value)
     else:
         raise TypeError("Argument {!r} expected to be of bytes,"
                         " str, int or float type".format(value))
@@ -47,8 +47,8 @@ def _convert_to_bytes(value):
 
 
 def _convert_to_str(value):
-    if type(value) in _converters_to_str:
-        converted_value = _converters_to_str[type(value)](value)
+    if type(value) in _converters_to_str_map:
+        converted_value = _converters_to_str_map[type(value)](value)
     else:
         raise TypeError("Argument {!r} expected to be of bytes,"
                         " str, int or float type".format(value))
@@ -131,7 +131,6 @@ class RdyControl:
             else:
                 RuntimeError("Should never be here")
 
-
     def remove_connection(self, conn):
         self._connections.pop(conn.id)
 
@@ -170,7 +169,7 @@ class RdyControl:
     @asyncio.coroutine
     def _update_rdy(self, conn_id):
         conn = self._connections[conn_id]
-        if conn._rdy_state > int(conn._last_rdy * 0.25):
+        if conn.rdy_state > int(conn._last_rdy * 0.25):
             return
         rdy_state = max(1, self._max_in_flight / max(1, len(self._connections)))
         yield from conn.rdy(int(rdy_state))

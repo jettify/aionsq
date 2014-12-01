@@ -73,12 +73,12 @@ class BaseCompressReader(BaseReader):
 
 class DeflateReader(BaseCompressReader):
 
-    def __init__(self, buffer='', level=6):
+    def __init__(self, buffer=None, level=6):
         self._parser = Reader()
         wbits = -zlib.MAX_WBITS
         self._decompressor = zlib.decompressobj(wbits)
         self._compressor = zlib.compressobj(level, zlib.DEFLATED, wbits)
-        self.feed(buffer)
+        buffer and self.feed(buffer)
 
     def compress(self, data):
         chunk = self._compressor.compress(data)
@@ -91,11 +91,11 @@ class DeflateReader(BaseCompressReader):
 
 class SnappyReader(BaseCompressReader):
 
-    def __init__(self, buffer=''):
+    def __init__(self, buffer=None):
         self._parser = Reader()
         self._decompressor = snappy.StreamDecompressor()
         self._compressor = snappy.StreamCompressor()
-        self.feed(buffer)
+        buffer and self.feed(buffer)
 
     def compress(self, data):
         compressed = self._compressor.add_chunk(data, compress=True)

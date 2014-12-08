@@ -24,27 +24,16 @@ def main():
         # data=json.dumps({"tls_v1": True}))
 
         print(resp)
-        # yield from nsq.upgrade_to_tls()
-
-        # nsq.upgrade_to_deflate()
-        # nsq.upgrade_to_snappy()
-        # import ipdb; ipdb.set_trace()
-        # yield from  asyncio.sleep(5, loop=loop)
-        # import ipdb; ipdb.set_trace()
-
         for i in range(0, 100):
             d = b'test_msg: ' + bytes([i])
             print('send ', i, '-----', d)
             yield from nsq.execute(b'PUB', b'foo', data=d)
-            # yield from nsq.execute(b'MPUB', b'foo', data=[b'msg1', b'msg2'])
-        # import ipdb; ipdb.set_trace()
+
         yield from nsq.execute(b'SUB', b'foo', b'bar')
 
         for i in range(0, 50):
             yield from nsq.execute(b'RDY', b'1')
-
             msg = yield from nsq._msq_queue.get()
-            print('proccess', i, "---", msg)
             yield from nsq.execute(b'FIN', msg.message_id)
 
     loop.run_until_complete(go())
@@ -52,14 +41,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-# {"max_rdy_count":2500,
-#  "version":"0.2.30",
-#  "max_msg_timeout":900000,
-#  "msg_timeout":0,
-#  "tls_v1":false,
-#  "deflate":false,
-#  "deflate_level":0,
-#  "max_deflate_level":6,
-#  "snappy":false,
-#  "sample_rate":0,
-#  "auth_required":false}

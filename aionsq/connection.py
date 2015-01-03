@@ -227,8 +227,9 @@ class NsqConnection:
             elif resp_type == consts.FRAME_TYPE_ERROR:
                 waiter, cb = self._cmd_waiters.popleft()
                 error = make_error(*resp)
-                waiter.set_exception(error)
-                cb is not None and cb(resp)
+                if not waiter.cancelled():
+                    waiter.set_result(resp)
+                    cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_MESSAGE:
 
                 # track number in flight messages

@@ -221,8 +221,9 @@ class NsqConnection:
                 self._pulse()
             elif resp_type == consts.FRAME_TYPE_RESPONSE:
                 waiter, cb = self._cmd_waiters.popleft()
-                waiter.set_result(resp)
-                cb is not None and cb(resp)
+                if not waiter.cancelled():
+                    waiter.set_result(resp)
+                    cb is not None and cb(resp)
             elif resp_type == consts.FRAME_TYPE_ERROR:
                 waiter, cb = self._cmd_waiters.popleft()
                 error = make_error(*resp)

@@ -1,4 +1,4 @@
-aionsq (work in progress)
+aionsq (Not Maintained )
 =========================
 
 asyncio (PEP 3156) nsq_ (message queue) client.
